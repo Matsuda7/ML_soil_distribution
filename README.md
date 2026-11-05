@@ -10,7 +10,8 @@ python run_analysis.py
         │
         ├─ 1. collect     元データ収集・配置・不足確認
         ├─ 2. prepare     共通前処理、c・φ・γの学習用データ整理
-        ├─ 3. distribute  各モデルの学習・分布作成
+        ├─ 3. train       モデル学習・検証・保存
+        ├─ 4. distribute  保存モデルから分布作成
         └─ results/YYYYMMDD/  対象ごとの結果と run_summary.json
 ```
 
@@ -22,53 +23,23 @@ c（モデルA）・φ・γをtargetsで選択して実行するコードを整�
 ## ディレクトリ
 
 ```text
-run_analysis.py                # 3段階を順に実行
-01_collect_data.py             # 第1段階だけ実行
-02_prepare_data.py             # 第2段階だけ実行
-03_create_distributions.py     # 第3段階だけ実行
-config/
-  pipeline.jsonc               # 既存データの取込元・取込先
-  phi/model.jsonc             # φ側の既存特徴量設定
-  phi/prediction.json         # 予測格子・深度・出力設定
-module/                       # 関数・共通処理（解析の本体）
-  collection.py               # 元データ取り込み
-  download.py                 # KuniJiban XML取得
-  strength.py                 # XMLから共通試験表へ
-  preparation.py              # c・φ・γの学習データ整理
-  boring.py / spatial.py      # 座標・DEM・地質・J-SHIS
-  spt_dataset.py              # SPT測定値の縦持ち化
-  xgb_common.py               # 孔単位分割・前処理・評価・XGBoost生成
-  phi_training.py             # φ側の既存SPTモデル学習
-  phi_prediction.py           # 格子予測とφ換算・描画
-  terrain.py                  # DEMによる地形量
-  distributions.py            # 各分布作成処理の呼び出し
-  paths.py / pipeline.py      # パス定義・実行制御
-data/
-  raw/                        # ダウンロード・収集した元データ
-    soiltest/strength/        # c・γ共通XML
-    boring/                   # ボーリングCSV
-    dem/                      # 標高行列 z.txt
-    geology/                  # 地質図
-    jshis/                    # J-SHIS
-    grid/                     # output4.txt・prop.txt
-  cache/dem/                  # DEMのメモリマップ用 z.npy
-  interim/                    # 共通の中間データ
-  training/
-    c/candidates.csv          # 粘着力候補（定義・単位の確認前）
-    phi/model_dataset.csv     # SPTモデル学習用
-    gamma/wet.csv             # 湿潤γをtargetにした表
-    gamma/dry.csv             # 乾燥γをtargetにした表
-results/
-  YYYYMMDD/                   # 実行開始日（日本時間）
-    c/                        # 有効粘着力のモデル・評価・分布
-    gamma_wet/                # 湿潤γを選択した場合
-    gamma_dry/                # 乾燥γを選択した場合
-    phi/                      # N値モデル・評価、φ分布
-    archive/                  # 同日に再実行した対象の過去結果
-    run_summary.json          # 統合コマンドの状態
-logs/
-tests/
+run_analysis.py              # pipeline.jsoncに従って工程を実行
+01_collect_data.py           # 収集
+02_prepare_data.py           # 前処理
+03_train_validate.py         # 学習・検証・モデル保存
+04_create_distributions.py   # 保存モデルから分布作成
+module/                      # 共通処理と各工程の実装
+  backends/xgboost.py        # XGBoost固有の前処理・学習・推論の接続
+  model_backend.py           # model.jsonによるモデル選択
+config/                      # モデル間で共有する設定
+  model.json                 # 使用モデル・学習深度・予測深度
+  pipeline.jsonc             # 対象・実行工程・再利用モデル
+  validation.json            # 共通の検証条件
+  spatial.json               # 格子・DEM・座標系
+  c/、phi/、gamma/            # 物性値別の設定
 ```
+
+[番号付き工程とスキップの設定](docs/pipeline_stages.md)を参照してください。
 
 ## 使い方
 
@@ -141,7 +112,7 @@ python run_analysis.py --stage collect --download
 `data/raw/grid/` に配置するか、`config/pipeline.jsonc` に取込元を登録してください。
 DEMの元ファイル `Z.txt` は統合先では `z.txt` とします。
 
-## 第2・第3段階の現状
+## 前処理・学習・分布工程の現状
 
 | 対象 | 学習データ整理 | 分布作成 |
 |---|---|---|
@@ -188,15 +159,15 @@ python -m unittest -v test_extract_strength.py
 ## c・γの土質試験地点を可視化
 
 ```bash
-python plot_test_locations.py
+python -m module.test_locations
 ```
 
-`config/test_locations.json` で元XML・出力先を指定します。
+元XML・出力先は `module/test_locations.py` の既定値を使用します。変更が必要な場合は `--xml-dir`・`--output-dir`・`--spatial-config` で指定できます。
 強度試験専用の抽出CSVでは欠落する密度試験も含めるため、元XMLを直接読み込みます。
 `results/test_locations/c_gamma_test_locations.png` とPDFに、c関連の強度試験地点とγの密度試験地点を並べて出力します。
 `test_locations.csv` に地点別の試験有無・座標、`summary.json` に集計、`excluded_records.csv` に座標欠損による除外を保存します。
 
-輪郭は `config/phi/prediction.json` のprop配置・範囲・10m格子に従い、0と非0の境界を線にします。
+輪郭は共通の `config/spatial.json` のprop配置・範囲・格子に従い、0と非0の境界を線にします。
 負値や10以上の値も非0として扱い、元格子を間引きません。範囲外の地点は中抜きで表示します。
 この線はpropの境界であり、別途取得した海岸線データではありません。
 XMLの測地系コード00（日本測地系）・01（JGD2000）・02（JGD2011）を読み、同じ平面座標系に変換します。
@@ -211,12 +182,13 @@ propの範囲外は全体で24地点。試料深度別の試験は同じ孔・�
 ## N値を使わない乾燥・湿潤γモデル
 
 コードを実装しましたが、今回の変更後の解析・学習・テストは未実行です。
-`python run_analysis.py` で収集・整理・学習・分布作成を順に実行します。
+`python run_analysis.py` で収集・前処理・学習検証・分布作成を設定に従って実行します。
 現在の `config/pipeline.jsonc` の targets は `["c"]` です。γのみなら `["gamma"]` に変更します。
 φも作成する場合は `["phi", "gamma"]` に変更します。cはCŪ・CDを使うモデルAを実装済みです（未実行）。
 
-説明変数は `config/gamma/model.jsonc` の x, y, depth, surface_z, slope,
-curvature, jshis_avs30, symbol, jshis_jcode。N値は使用しません。
+説明変数は `config/gamma/features.jsonc` で選択します。現在のno_n経路では、
+depth、sample_elevation、slope、curvatureと、symbol、jshis_jcode、soil_inventory_ssgを使用します。
+同ファイルにn_valueがあっても、no_n経路では除外されます。
 `config/model.json` の prediction_depth_mを変更できます。
 湿潤・乾燥密度[g/cm³]を9.80665倍して単位体積重量[kN/m³]に変換し、`gamma_kind` で選んだ側だけ学習します。
 密度のみのXML試験も収集し、欠損・不正値・DEM範囲外の除外記録を残します。
@@ -229,8 +201,7 @@ curvature, jshis_avs30, symbol, jshis_jcode。N値は使用しません。
 
 ## N値・γのvalidation切り替え
 
-N値モデルは `config/phi/validation.json`、γは `config/gamma/prediction.json` の
-validation を編集します。
+通常のN値・c・γの検証条件は共通の `config/validation.json` を編集します。
 
 ```json
 {"mode": "borehole", "test_size": 0.2,
@@ -251,18 +222,23 @@ validation_sizeはtestを除いた残りに対する割合です。分割可能�
 config/
   pipeline.jsonc          # 出力対象・収集設定
   spatial.json           # 共通の格子・DEM・prop・座標系
-  test_locations.json    # c・γ共通の試験地点図
-  c/                     # モデルAの予測・validation設定
+  validation.json        # N値・c・γの共通検証条件
+  c/                     # 詳細はconfig/c/README.md
+    features.jsonc       # cの説明変数
+    prediction.json      # cの実行設定・他設定への参照
+    n_distribution.json  # 保存済みN分布の選択（nullなら最新の完了結果）
   phi/
-    model.jsonc
+    features.jsonc       # N値モデルの説明変数
     prediction.json
-    validation.json
   gamma/
-    model.jsonc
+    features.jsonc
     prediction.json      # γの予測・学習・validation設定
+    n_comparison/        # N値条件比較
+    stage2/              # 二段階モデルの独立設定
 ```
 
-φとγはconfig/spatial.jsonを共有します。深度は各対象のprediction.jsonで指定します。
+φ・c・γはconfig/spatial.jsonを共有します。共通の学習深度・予測深度はconfig/model.jsonで指定します。
+設定項目と編集先は[cの案内](config/c/README.md)、[γの案内](config/gamma/README.md)、[φ・Nの案内](config/phi/README.md)を参照してください。
 γのobserved_vs_predicted.pngには評価用データのR²を左上に表示します（φには既に表示あり）。
 γ分布図のタイトルは英語、軸はメートルです。北を上にした図で、平面直角座標系VIIの
 正式な軸名に従い横軸Y（東西）、縦軸X（南北）とします。
@@ -276,10 +252,10 @@ config/
 ## N値の導入比較
 
 [対応ルール・比較条件・信頼性指標・実行設定](docs/n_comparison.md)を追加しました。
-config/gamma/n_comparison.jsonのenabledで切り替えます。今回の変更後の解析・テストは未実行です。
+config/gamma/n_comparison/settings.jsonのenabledで切り替えます。今回の変更後の解析・テストは未実行です。
 比較のみの場合はconfig/gamma/prediction.jsonのcreate_distributionをfalseにしてください。
 
-採用分布モデルをpredicted_nに変更しました。設定と学習条件は[比較・採用モデルの説明](docs/n_comparison.md)を参照してください。既存結果の更新・解析・テストは行っていません。
+γの採用モデルは `config/gamma/prediction.json` の `distribution_model` で指定します。現在は `no_n`、N値比較は無効です。比較経路の説明は[比較・採用モデルの説明](docs/n_comparison.md)を参照してください。
 
 ## c：モデルA
 
@@ -308,7 +284,7 @@ python run_analysis.py --targets gamma --gamma-kind dry
 ```
 
 c・φも含めて最初から実行する場合は `python run_analysis.py --gamma-kind wet` を使います。
-前処理済みなら `python 03_create_distributions.py --targets gamma --gamma-kind dry` で分布作成だけを実行できます。
+前処理済みなら `python 04_create_distributions.py --targets gamma --gamma-kind dry` で分布作成だけを実行できます。
 選択した種類は各実行の `config.json` と `run_summary.json` に記録されます。
 
 
@@ -338,120 +314,26 @@ N値・γ・cの予測深度は `config/model.json` の `prediction_depth_m`（m
 表示点は図と同じディレクトリの `*_observed_overlay.csv` に保存します。これは独立した精度検証ではありません。
 既存の予測結果はその計算深度を確認してから再描画してください。深度が異なる場合は予測の再計算が必要です。
 
-## XGBoostとTabPFNの比較
+## 工程別の実行とモデル選択
 
-既存解析を維持したまま `python run_analysis.py --stage compare` で比較経路を実行できます。
-設定は `config/comparison.json`、導入・空間CV条件・容量制限・分布推定・検証は
-[TabPFN比較ガイド](docs/tabpfn_comparison.md) を参照してください。
-TabPFNは任意依存で、`--models xgboost` は未導入環境でも使用できます。
-
-10 m全域分布の長時間実行・停止/再開・完成状態の確認は
-[10 m分布ガイド](docs/full_distribution_10m.md) を参照してください。
-
-解析はコマンド実行時だけ開始します。`python run_distribution.py --help` で分布用CLIを確認でき、`--plan` は解析を行いません。停止済みTabPFNの再開には `--resume` を明示します。
-
-## TabPFNのCPUスレッド設定とorca（Torque PBS）
-
-CPU用の共通設定を追加しました。以下は**利用者が後で実行するコマンド例**です。
-今回の変更では解析・テスト実行・環境導入・重み取得・ジョブ投入を行っていません。
-
-`config/comparison.json` の `tabpfn` に設定します（モデル選択は従来どおり `models` / `--models`）。
-
-```json
-{
-  "cpu_threads": 8,
-  "device": "cpu",
-  "predict_batch_size": 1000
-}
-```
-
-- `cpu_threads` は1以上の整数、または `null`。0・負数・小数・文字列・真偽値はエラーです。
-- `null` はPBS割当を優先し、PBS外ではCPUアフィニティとOS CPU数から決定します。
-  明示値もPBS割当・アフィニティ・OS CPU数を上限に制限し、制限時は警告とログを残します。
-- `PBS_NODEFILE` は実行ホストの行数を数えます。複数ノードの合計を1プロセスに割り当てません。
-  `PBS_NP` もあれば小さい方を採用します。PBS割当が不明、ノードファイルが読めない、
-  実行ホストが含まれない場合は安全のため停止します。付属PBSスクリプトは1ノード専用です。
-- CLI起動時、NumPy/PyTorch等のimport前に `OMP_NUM_THREADS`、`MKL_NUM_THREADS`、
-  `OPENBLAS_NUM_THREADS` を設定し、モデル作成・復元時に `torch.set_num_threads` を適用します。
-  Pythonから直接モジュールを呼ぶ場合はimport順序に注意してください。遅い初期化は警告します。
-- `device` は `auto`（CUDA優先、利用不可ならCPU）、`cpu`、`cuda`（CUDA不可ならエラー）。
-  CPUスレッド設定はGPU計算自体を高速化する設定ではありません。
-- `predict_batch_size` は1以上の整数。従来の `batch_size` よりTabPFN用設定を優先します。
-  全域CLIの `--batch-size` はさらに優先します。省略時の従来値は256です。
-
-既存v2モデルをCPUで使用する場合（既存の別環境・ローカル重みが必要）：
+`config/model.json` の `model` を `"xgboost"` に設定します。
+将来の別モデルはmodule/backends/へ実装し、共通工程の入口はそのまま使用する設計です。
+現在はXGBoostのみ実装済みで、未実装モデルを指定すると解析開始前にエラーにします。
 
 ```bash
-python run_analysis.py --stage compare --models tabpfn --comparison-config config/comparison.json
+python run_analysis.py
 ```
 
-CPU向けの新規比較には `config/comparison.orca.json` を用意しました。
-この設定は明示的に3.5-Fastを選び、CPU・スレッド自動・バッチ256を使用します。
-公式の [3.5-Fast API](https://github.com/PriorLabs/TabPFN/blob/v9.2.0/src/tabpfn/regressor.py) と
-[依存関係](https://github.com/PriorLabs/TabPFN/blob/v9.2.0/pyproject.toml) に基づき、
-`requirements-tabpfn-fast.txt` は `tabpfn==9.2.0`、PyTorch 2.5以上を指定しています。
-Python 3.10以上の**別環境**が必要です。既存の2.2.1環境・`requirements-tabpfn.txt` は変更しません。
-実際の依存関係解決・モデル実行は未検証です。
+実行工程はconfig/pipeline.jsoncのstagesで選択できます。詳細は[工程設定](docs/pipeline_stages.md)を参照してください。
+XGBoost単独の独立した空間CVは従来の--stage compareとconfig/xgboost/evaluation.jsonで使用できます。
+旧run_distribution.py・plot_test_locations.pyは削除しました。通常の分布作成は04の工程に統一しています。
+独立した全域CV結果の分布は `python -m module.full_distribution`、試験地点図は `python -m module.test_locations` で必要時に使用できます。
 
-```bash
-/path/to/fast-env/bin/python run_analysis.py --stage compare --models xgboost tabpfn --comparison-config config/comparison.orca.json
-```
+### cへのN値分布の入力
 
-モデル重みは `data/models/tabpfn/tabpfn-v3.5-fast-20260909.safetensors` に事前配置してください。
-[公式の利用条件・認証・オフライン手順](https://docs.priorlabs.ai/models/accessing-model-weights) を確認して準備します。
-コードはローカルファイルがなければ停止します。保存モデルの復元時も元の重みのパスを確認します。
-今回、利用条件の代理同意・認証・ダウンロードはしていません。
-既存v2の比較結果・学習済み状態をFastに切り替えて再開することはできません。Fastでは新規CVを実施し、
-同じモデルで分布推定してください。モデル変更による精度差とスレッド変更による速度差は別に評価します。
-
-orcaではリポジトリ直下から、準備済みPython環境を指定します。
-`#PBS -l nodes=1:ppn=8` と `walltime` はスクリプト先頭で編集してください。
-`cpu_threads=null` ならPython側も割当数を使用します（アフィニティが小さければその数まで）。
-メモリ資源の指定方法・上限はorcaの運用規則に合わせて追記してください。
-
-```bash
-qsub -v PYTHON_BIN=/absolute/path/to/fast-env/bin/python scripts/orca_tabpfn_cpu.pbs
-```
-
-付属スクリプトの既定動作はTabPFN単独のCVです。標準出力・標準エラーは `logs/pbs/` にジョブID・時刻別に保存し、
-Python起動前のエラーはPBS標準ログに残ります。スクリプトはパッケージ導入をしません。
-
-既に比較が完了し、共通の地理特徴量キャッシュを準備してある10 m全域分布には次を使用します。
-`config/tabpfn_cpu.json` は実行資源だけの上書き用です。元のCVモデル・特徴量・単位・メッシュを変更しません。
-
-```bash
-python run_distribution.py --stage tabpfn \
-  --comparison-run results/YYYYMMDD/comparison/RUN_ID \
-  --output results/YYYYMMDD/distribution_10m_5m \
-  --runtime-config config/tabpfn_cpu.json
-
-qsub -v PYTHON_BIN=/absolute/path/to/env/bin/python,JOB_STAGE=tabpfn,COMPARISON_RUN=results/YYYYMMDD/comparison/RUN_ID,DISTRIBUTION_OUTPUT=results/YYYYMMDD/distribution_10m_5m scripts/orca_tabpfn_cpu.pbs
-```
-
-重みと同じバージョンのPython環境を選んでください。停止フラグがある場合は自動で再開しません。
-利用者が再開を決めたときだけ直接CLIに `--resume` を付けます。
-新規全域分布の準備は [10 m分布ガイド](docs/full_distribution_10m.md) を参照してください。
-
-CPUスレッド数は同時に働くソフトウェアの実行単位数であり、物理コア数と同じとは限りません。
-OSやPBSが示す数には論理CPUが含まれる場合があります。増やせば比例して速くなるとは限らず、
-メモリ帯域やスレッド間の競合が律速になります。追加のプロセス並列は導入せず、TabPFNの前処理並列数も1です。
-PyTorchのinter-opスレッド数やプロセス全体の全スレッド数を指定する機能ではありません。
-
-約2,000万点は既存のチャンク読み込み・memmap・バッチ推論を継続使用します。
-バッチを小さくしても学習データ・モデル・前処理・地図マスクのメモリは必要です。
-CPUでは長時間かかる可能性があり、スレッド並列だけで実用時間内の完了は保証できません。
-モデルの学習行数・特徴量数の制限は維持し、超過時にデータ削減や制限解除はしません。
-v2のN評価が容量制限で失敗する場合、スレッドを増やしても解消しません。
-Fastも公式APIのCPU容量検査に従います。N評価が成功するとは未検証のため断定しません。
-スレッド・デバイス・バッチ数の変更による浮動小数点差は未検証です。
-厳密な再現性が必要な実行ではこれらの条件も固定し、途中で変更しないでください。
-
-実行時は各モデル出力内の `runtime.jsonl` と `prediction_runtime.jsonl` に
-設定スレッド数・適用値・PyTorch実値・PBS割当・アフィニティ・モデル・デバイス・バッチ数・
-処理点数・推論秒数・点/秒を追記します。全域の総点数は開始ログと既存の進捗JSONに残します。
-既存の結果・ログを今回削除・上書きしていません。
-
-XGBoost単独ではTabPFN/PyTorchを読み込まず、CPU環境変数も変更しません。
-両モデルを同一プロセスで比較する場合はBLAS環境設定がプロセス共通になりますが、
-XGBoostのパラメータ、N・c・γの推定式、CV分割、欠損値処理は変更していません。
-今回の変更ファイルと未検証事項は [作業記録](docs/tabpfn_cpu_implementation.md) を参照してください。
+c専用の上流N値学習は廃止し、完了済みφ解析のN値分布を再利用します。
+`python run_analysis.py --targets phi c` はφを先に実行し、その実行で保存したN値分布をcへ渡します。
+cだけなら最新の完了済みφ結果を選びます。各試料の深度によらず、固定深度のN分布を平面位置で参照します。
+保存元・N分布深度・最近傍格子への距離を記録します。
+これは保存済みN分布を条件としたcの評価で、上流Nモデルまで含む独立評価ではありません。
+詳細と出力は[config/cの案内](config/c/README.md)を参照してください。

@@ -18,7 +18,7 @@ def validate_config(config):
     return config
 
 
-def load_config(path='config/phi/validation.json'):
+def load_config(path='config/validation.json'):
     return validate_config(json.loads(project_path(path).read_text()))
 
 

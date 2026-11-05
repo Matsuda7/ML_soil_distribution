@@ -1,6 +1,5 @@
 """Shared SSG texture lookup for N-value training and grid prediction."""
 from functools import lru_cache
-import json
 import geopandas as gpd
 import numpy as np
 import pandas as pd
@@ -9,21 +8,21 @@ from module.xgb_common import build_preprocessor
 
 COLUMNS = ['representative_total_sand', 'representative_silt', 'representative_clay']
 SOIL_CATEGORY = 'soil_inventory_ssg'
+SOIL_ARCHIVE = 'data/raw/soil_inventory/石川_20.zip'
+REPRESENTATIVE_PROPERTIES = 'gamma_test/solphyj_representative_soil/ssg_representative_properties.csv'
 
 
 @lru_cache(maxsize=4)
 def load_soil_lookup(crs):
-    settings = json.loads(project_path('config/phi/solphyj.json').read_text())
-    soil = gpd.read_file('zip://' + str(project_path(settings['soil_archive'])), encoding='cp932').to_crs(crs)
+    soil = gpd.read_file('zip://' + str(project_path(SOIL_ARCHIVE)), encoding='cp932').to_crs(crs)
     soil['SSerGrCD'] = soil.SSerGrCD.astype('string')
     return soil[['SSerGrCD', 'geometry']]
 
 
 @lru_cache(maxsize=4)
 def load_lookup(crs):
-    settings = json.loads(project_path('config/phi/solphyj.json').read_text())
     soil = load_soil_lookup(crs)
-    props = pd.read_csv(project_path(settings['representatives']), dtype={'SSG code': str})
+    props = pd.read_csv(project_path(REPRESENTATIVE_PROPERTIES), dtype={'SSG code': str})
     if props['SSG code'].duplicated().any():
         raise ValueError('Duplicate SolphyJ SSG codes')
     return soil[['SSerGrCD', 'geometry']], props.set_index('SSG code')[COLUMNS]

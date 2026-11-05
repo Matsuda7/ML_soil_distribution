@@ -2,7 +2,7 @@
 
 2026-09-26：代表粒度3変数に代わり、土壌図のSSerGrCDをカテゴリ変数soil_inventory_ssgとして採用しました。現設定で無効だったx・yはそのままです。
 学習CSVの読込時とグリッド予測時に、同じ土壌図への空間結合でコードを付与します。土壌図外・境界上・異なるSSGの重複はUNKNOWNです。学習部分でone-hot化し、未学習カテゴリは全ゼロになります。
-土壌図はconfig/phi/solphyj.jsonのsoil_archiveで指定します。分類だけを使う場合、SolphyJ代表粒度CSVは読み込みません。同じ地点には深度によらず同じ分類を付与します。
+土壌図の入力先はmodule/solphyj_features.pyのSOIL_ARCHIVEに固定しています。分類だけを使う場合、SolphyJ代表粒度CSVは読み込みません。同じ地点には深度によらず同じ分類を付与します。
 変更は次回の再学習から有効です。保存済みモデル・分布の更新には再学習・再予測が必要です。既存の代表粒度モデルの予測経路は維持します。
 
 以下は過去の代表粒度を使った実装・評価の記録であり、現モデルの説明変数・精度ではありません。
@@ -11,15 +11,15 @@
 
 2026-09-24：N値モデルの説明変数`surface_z`（地表面標高）を`depth`（地表面からの深度、m）に置き換えました。
 試料標高`sample_elevation`とSolphyJの3物性は維持します。
-学習時は各SPT試料の深度、全域予測時は`config/phi/prediction.json`の`prediction_depth_m`を使用します。
+学習時は各SPT試料の深度、全域予測時は共通の`config/model.json`の`prediction_depth_m`を使用します。
 地表面標高は試料標高・地形特徴量の計算用として保持しますが、モデルへ直接入力しません。
 以下の採用前比較のR²は置き換え前の結果であり、深度への変更後の精度は未評価です。
 
-`config/phi/model.jsonc`で、既存特徴量に`representative_total_sand`、
+`config/phi/features.jsonc`で、既存特徴量に`representative_total_sand`、
 `representative_silt`、`representative_clay`を追加しています。
 N値から換算するφ分布にもこのN値モデルを使用します。
 
-入力土壌図とSSG代表物性表の保存先は`config/phi/solphyj.json`で管理します。
+入力土壌図とSSG代表物性表の保存先は`module/solphyj_features.py`のSOIL_ARCHIVE・REPRESENTATIVE_PROPERTIESに定義します。
 代表表はStep 4-2で作成した成果物を使用するため、このファイルは保持してください。
 SSerGrCDとSSG codeの完全一致で結合し、名称の曖昧一致は行いません。
 同一点で複数ポリゴンのSSGが相違した場合、または対応する代表値がない場合はNaNとします。

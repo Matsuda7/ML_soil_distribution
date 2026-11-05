@@ -15,7 +15,7 @@ from module.gamma_stage2_integrated import SOLPHYJ_COLUMNS
 
 class DepthDistributionTests(unittest.TestCase):
     def test_f3_configuration_has_depth_without_geology_or_jshis(self):
-        config = load_config('config/gamma/stage2_f3_distribution.json')
+        config = load_config('config/gamma/stage2/f3_distribution.json')
         self.assertEqual(config['distribution_model'], 'F3_depth')
         self.assertEqual(config['numeric_features'], ['x', 'y', 'elevation', 'depth', *SOLPHYJ_COLUMNS])
         self.assertEqual(config['categorical_features'], [])
@@ -29,10 +29,10 @@ class DepthDistributionTests(unittest.TestCase):
                 return _read_json(path)
             with patch('module.configuration._read_json', side_effect=read):
                 if depth == 2.5:
-                    self.assertEqual(load_config('config/gamma/stage2_distribution.json')['prediction_depth_m'], 2.5)
+                    self.assertEqual(load_config('config/gamma/stage2/f4_distribution.json')['prediction_depth_m'], 2.5)
                 else:
                     with self.assertRaises(ValueError):
-                        load_config('config/gamma/stage2_distribution.json')
+                        load_config('config/gamma/stage2/f4_distribution.json')
 
     def test_soil_overlap_and_outside_remain_missing(self):
         soil = gpd.GeoDataFrame({'SSerGrCD': ['A', 'B']}, geometry=[box(0,0,2,2),box(1,0,3,2)], crs='EPSG:6675')

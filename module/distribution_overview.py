@@ -53,7 +53,7 @@ def publish(root):
         ax.set(title=label,xlabel='X [m]',ylabel='Y [m]',aspect='equal')
         fig.colorbar(im,ax=ax,label=unit,shrink=.76)
     axes.ravel()[-1].axis('off')
-    axes.ravel()[-1].text(.05,.85,f'XGBoost: full area completed\n\nDepth: 5 m\nPrediction mesh: 10 m\nActive cells: {expected:,}\nCRS: EPSG:6675\n\nRaw predictions are retained separately.\nTabPFN full-area maps are incomplete.\nNo TabPFN values are shown here.',fontsize=13,va='top')
+    axes.ravel()[-1].text(.05,.85,f'XGBoost: full area completed\n\nDepth: 5 m\nPrediction mesh: 10 m\nActive cells: {expected:,}\nCRS: EPSG:6675\n\nRaw predictions are retained separately.',fontsize=13,va='top')
     fig.suptitle('Soil property distributions — XGBoost',fontsize=19)
     fig.tight_layout();fig.savefig(root/'xgboost_overview.png',dpi=160);plt.close(fig)
     print(json.dumps(audit,indent=2))

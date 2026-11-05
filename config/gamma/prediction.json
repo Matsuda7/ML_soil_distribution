@@ -1,6 +1,6 @@
 {
   "gamma_kind": "wet",
-  "model_config": "config/gamma/model.jsonc",
+  "model_config": "config/gamma/features.jsonc",
   "density_unit": "g/cm3",
   "gravity_m_s2": 9.80665,
   "exclude_outside_dem": true,
@@ -24,13 +24,7 @@
     "importance_type": "gain",
     "early_stopping_rounds": 75
   },
-  "validation": {
-    "mode": "borehole",
-    "test_size": 0.2,
-    "validation_size": 0.2,
-    "random_state": 42
-  },
-  "n_comparison_config": "config/gamma/n_comparison.json",
+  "n_comparison_config": "config/gamma/n_comparison/settings.json",
   "create_distribution": true,
   "distribution_model": "no_n"
 }

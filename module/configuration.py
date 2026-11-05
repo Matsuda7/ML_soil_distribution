@@ -26,13 +26,13 @@ def load_model_settings(path="config/model.json"):
 
 
 def load_prediction_settings(path):
-    """Merge spatial, shared prediction, then target-specific settings."""
-    shared = _read_json("config/prediction.json")
+    """Merge shared spatial/validation settings and target-specific options."""
     target = _read_json(path)
-    config = {**shared, **target}
-    spatial_path = config.get("spatial_config")
-    if spatial_path:
-        config = {**_read_json(spatial_path), **config}
+    spatial_path = target.get("spatial_config", "config/spatial.json")
+    config = {**_read_json(spatial_path), **target, "spatial_config": spatial_path}
+    validation_path = target.get("validation_config", "config/validation.json")
+    config["validation_config"] = validation_path
+    config["validation"] = {**_read_json(validation_path), **target.get("validation", {})}
     model = _read_json("config/model.json")
     for key in ("prediction_depth_m", "observed_depth_tolerance_m"):
         value = model.get(key)

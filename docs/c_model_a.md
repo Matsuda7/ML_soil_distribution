@@ -12,7 +12,7 @@ python run_analysis.py --targets c
 python run_analysis.py --stage distribute --targets c
 ```
 
-モデル・N値上流モデルの設定は`config/c/model.jsonc`と`config/c/n_model.jsonc`、評価は`config/c/validation.json`、格子予測深度は`config/c/prediction.json`で指定します。初期予測深度は1 mです。
+cの説明変数は`config/c/features.jsonc`、評価は`config/validation.json`、N値分布の保存元は`config/c/n_distribution.json`で指定します。深度は共通の`config/model.json`です。
 この呼び出しでは実行時に学習と分布予測が行われます。
 
 ## 目的値と対象試験
@@ -33,20 +33,22 @@ SOILTESTLISTの標準XMLであることを確認して、shear_strength_effectiv
 
 ## 説明変数と領域
 
-config/c/model.jsoncで、x、y、depth、sample_elevation、slope、curvature、jshis_avs30、jshis_arv、symbol、jshis_jcode、n_valueを指定します。
+config/c/features.jsoncで説明変数を指定します。現在は数値7変数（depth、sample_elevation、slope、curvature、jshis_avs30、jshis_arv、n_value）とカテゴリ3変数（symbol、jshis_jcode、soil_inventory_ssg）が有効です。x、yはコメントアウトされており使用しません。
 sample_elevationは学習時にDEM標高−試料中央深度、予測時にDEM標高−指定深度です。
 depthは地表からの深度（m）です。地表標高surface_zはcの直接の説明変数に入れません。
-n_valueは上流N値モデルの推定値です。cの評価領域にあるN測定孔は、評価孔・地域の除外後に上流N値からも外し、交差適合して生成します。上流モデル特徴量はconfig/c/n_model.jsoncでc専用に定義します。
-実測N値が同じ位置にないc試料も、予測N値を使って学習します。N値の直接対応有無でc試料を限定しません。実測N値が5孔未満しか対応しない場合は、実測Nを用いた比較評価を省略し、予測Nの条件で全c試料を評価します。実測Nが十分な孔に対応する場合のみ、同一試料による条件比較を行います。
-cの評価孔・地域は上流N値モデルからも除外し、学習側N値も交差適合で生成します。
-学習表のn_valueは前処理時は空欄とし、分割後に学習・評価ごとに生成した値を保存します。
+n_valueは完了済みφ解析が保存したN値分布から取得します。φ角からの逆算は行いません。
+cだけなら最新の完了結果を使用し、φと同時に実行するときはφを先に実行してその結果を使います。
+固定深度のN分布を、c試料の深度によらず平面位置の最寄り格子で参照します。
+範囲外・欠損格子は補完せず停止します。c専用のN値学習・交差適合・実測N比較は行いません。
+保存済みNモデルがc評価孔のN値を学習済みである可能性があるため、評価は保存済み分布を条件とするものです。
+上流Nモデルまで含む独立した汎化精度とは扱いません。
 詳細は[最新の説明変数](soil_predictors.md)を参照してください。
 config/spatial.jsonをφ・γと共用し、同じ領域・10m格子・prop非0を予測します。
-config/c/prediction.jsonで深度を指定できます（初期値1m）。画像の表示間隔は100m、数値格子は10mです。
+config/model.jsonのprediction_depth_mで予測深度を指定します。画像の表示間隔はconfig/c/prediction.json、数値格子はconfig/spatial.jsonで指定します。
 
 ## 評価・学習
 
-config/c/validation.jsonで孔単位・空間評価を切り替えます。
+config/validation.jsonで孔単位・空間評価を切り替えます。
 異なるXML名でも同じ平面位置にある試料は同じグループとして扱います。
 主評価のvalidationで木数を決め、全採用試料で最終モデルを再学習します。
 空間評価は独立した追加評価です。主評価の木数選択には使いません。
@@ -64,13 +66,16 @@ config/c/validation.jsonで孔単位・空間評価を切り替えます。
 
 単位はkPa（kN/m²と同じ）。図は英語タイトルで、正式な平面直角座標系の軸名に従い横Y・縦X、単位m。
 
-## 実行時のN値モデル設定
+## 使用するN値分布
 
-`config/c/n_estimation.json`はc専用の`config/c/n_model.jsonc`を参照し、現在のφモデル設定から独立しています。
-c分布の実行で、実測Nが対応する孔数が孔単位評価に不足する場合も、全採用c試料を評価対象に残したまま、上流モデルから交差適合した予測Nを使います。実測N比較の結果は`evaluation/borehole/comparison.csv`に`unavailable`と理由を記録します。
-分布作成を実行すると`results/YYYYMMDD/c/`にモデル、評価結果、格子予測を保存します。既存の同日結果はarchiveへ退避します。
+`config/c/n_distribution.json` の `run_directory: null` は、results/YYYYMMDD/phi/および同日archive/phi_*の
+完了済みrun_summary.jsonの更新時刻で最新の実行を選びます。固定したい場合はφの実行ディレクトリを指定します。
+φと同時指定した場合は今回のφ結果を優先し、φの失敗時はcを停止します。
+詳細は[設定の案内](../config/c/README.md)を参照してください。
 
-このコード変更後のc学習・格子分布予測はまだ完了していません。格子予測は長時間かかるため、実行環境と時間を確保して上記コマンドを実行してください。
+```bash
+python run_analysis.py --targets phi c
+```
 
-
-学習深度範囲は`config/model.json`で設定し、φ・c・γで共通に適用します。共通の予測深度は`config/model.json`、空間条件は`config/prediction.json`に置き、c固有のチャンクや表示間隔は`config/c/prediction.json`に置きます。
+旧方式の準備データとは署名が異なるため、次回は準備を含めて実行してください。
+今回、学習・推論・解析・テスト・PBS投入は実行していません。

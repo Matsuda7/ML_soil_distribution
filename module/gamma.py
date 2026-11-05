@@ -8,7 +8,7 @@ from module.gamma_training import train_both
 from module.gamma_prediction import predict_grid
 
 
-def distribute(config=None,max_chunks=None):
+def train(config=None):
     config=config or load_config()
     kind = selected_kinds(config)[0]
     run = create_target_directory('gamma_' + kind)
@@ -27,20 +27,14 @@ def distribute(config=None,max_chunks=None):
             from module.n_comparison import run_comparison
             comparison = run_comparison(config, run/'n_comparison')
             status['n_comparison'] = comparison
-        if config['create_distribution']:
-            n_artifact = None
-            if config['distribution_model'] == 'predicted_n':
-                if comparison is None or comparison['status'] != 'complete':
-                    raise ValueError('Cannot deploy predicted_n without completed comparison evaluations')
-                from module.gamma_predicted_n import train_selected
-                models, n_artifact = train_selected(config, run)
-            else:
-                models=train_both(config,run/'models')
-            prediction=predict_grid(config,models,run/'grid',max_chunks=max_chunks,n_artifact=n_artifact)
-            status.update(prediction)
-            status['distribution_model'] = config['distribution_model']
+        if config['distribution_model'] == 'predicted_n':
+            if comparison is None or comparison['status'] != 'complete':
+                raise ValueError('Cannot deploy predicted_n without completed comparison evaluations')
+            from module.gamma_predicted_n import train_selected
+            train_selected(config, run)
         else:
-            status.update(status='complete', distribution='not_requested')
+            train_both(config,run/'models')
+        status.update(status='trained', distribution_model=config['distribution_model'])
         if comparison is not None and comparison['status'] != 'complete':
             status['status'] = 'incomplete'
     except Exception as error:
@@ -49,3 +43,10 @@ def distribute(config=None,max_chunks=None):
         raise
     (run/'run_summary.json').write_text(json.dumps(status,ensure_ascii=False,indent=2)+'\n')
     return {**status,'output':str(run)}
+
+
+def distribute(config=None,max_chunks=None):
+    """Compatibility API for explicit training followed by prediction."""
+    from module.backends.xgboost import train as train_target, predict
+    result = train_target('gamma',config_override=config)
+    return predict('gamma', Path(result['output']), max_chunks=max_chunks)

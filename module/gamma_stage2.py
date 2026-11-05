@@ -134,7 +134,7 @@ def run(config):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='config/gamma/stage2.json')
+    parser.add_argument('--config', default='config/gamma/stage2/baseline.json')
     args = parser.parse_args()
     run(json.loads(project_path(args.config).read_text()))
 

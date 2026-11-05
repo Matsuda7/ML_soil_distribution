@@ -309,7 +309,7 @@ def write_readme(out, summary, delta_summary, stability, split_counts, solphyj_a
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default="config/gamma/stage2_integrated.json")
+    parser.add_argument("--config", default="config/gamma/stage2/integrated.json")
     args = parser.parse_args()
     config = json.loads(project_path(args.config).read_text(encoding="utf-8"))
     if config["sample_weight"] != 1.0:

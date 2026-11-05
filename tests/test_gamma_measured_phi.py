@@ -12,7 +12,7 @@ from module.xgb_common import load_model_config
 class GammaMeasuredPhiTests(unittest.TestCase):
     def test_measured_config_matches_phi_without_n(self):
         config=load_config()
-        numeric,categorical=load_model_config(CONFIG/'phi/model.jsonc')
+        numeric,categorical=load_model_config(CONFIG/'phi/features.jsonc')
         self.assertEqual(config['numeric_features'],numeric)
         self.assertEqual(config['categorical_features'],categorical)
         self.assertEqual(config['gamma_kind'],'wet')

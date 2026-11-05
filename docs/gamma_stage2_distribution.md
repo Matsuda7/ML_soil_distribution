@@ -1,12 +1,12 @@
 # 深度を指定した二段階γ分布
 
-F3＋深度の比較には `config/gamma/stage2_f3_distribution.json` を使います。説明変数は x・y・試料標高・深度・SolphyJ代表砂分・シルト分・粘土分の7数値変数です。出力先は `gamma_test/stage2_f3_depth/` です。
+F3＋深度の比較には `config/gamma/stage2/f3_distribution.json` を使います。説明変数は x・y・試料標高・深度・SolphyJ代表砂分・シルト分・粘土分の7数値変数です。出力先は `gamma_test/stage2_f3_depth_borehole/` です。
 
 ```bash
-python -m module.gamma_stage2_distribution --config config/gamma/stage2_f3_distribution.json --stage all
+python -m module.gamma_stage2_distribution --config config/gamma/stage2/f3_distribution.json --stage all
 ```
 
-設定は `config/gamma/stage2_distribution.json`。`prediction_depth_m` は地表からの深度（m、0以上）で、初期値は1.0です。
+設定は `config/gamma/stage2/f4_distribution.json`。予測深度は共通の `config/model.json` の `prediction_depth_m`（地表からの深度、m、0以上）で指定します。
 
 ```bash
 python -m module.gamma_stage2_distribution --stage all

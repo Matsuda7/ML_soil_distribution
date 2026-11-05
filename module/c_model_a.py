@@ -35,11 +35,11 @@ def load_config():
     allowed={'n_value','x','y','surface_z','depth','elevation','sample_elevation','jshis_avs30','jshis_arv','slope','curvature','dem_missing'}
     if set(config['numeric_features'])-allowed or set(config['categorical_features'])-{'symbol','ser','jshis_jcode','soil_inventory_ssg'}:
         raise ValueError('Model A currently supports geographic N-model features only; target-derived RBF is not implemented')
-    config['validation']=validate_config(json.loads(project_path(config['validation_config']).read_text()))
-    from module.n_comparison_config import load_options
-    config['n_comparison'] = load_options(config['n_estimation_config'])
-    if 'n_value' in config['numeric_features'] and (not config['n_comparison']['enabled'] or config['validation']['mode']=='row'):
-        raise ValueError('Model A n_value requires enabled N estimation and borehole/spatial validation')
+    config['validation']=validate_config(config['validation'])
+    config['n_distribution'] = json.loads(project_path(config['n_distribution_config']).read_text())
+    source = config['n_distribution'].get('run_directory')
+    if source is not None and (not isinstance(source,str) or not source.strip()):
+        raise ValueError('n_distribution.run_directory must be null or a non-empty path')
     from module.phi_training import XGB_PARAMETERS
     config['xgb_parameters']=dict(XGB_PARAMETERS,**config.get('xgb_parameters',{}))
     if not isinstance(config.get('write_text_matrix',True),bool):
@@ -85,8 +85,8 @@ def signature(config):
         key: str(value) if isinstance(value, Path) else value
         for key, value in config['spatial'].items()
     }
-    return {'schema':'model_A_effective_cohesion_predicted_n_v2','spatial':spatial,
-            'n_estimation':config['n_comparison'],
+    return {'schema':'model_A_effective_cohesion_saved_n_grid_v3','spatial':spatial,
+            'n_distribution':config['n_distribution'],
             'numeric_features':config['numeric_features'],'categorical_features':config['categorical_features'],
             'training_depth':config['model_settings']}
 
@@ -134,11 +134,8 @@ def prepare(raw=None):
     geology,jshis=geographic_context(config,frame)
     frame=enrich(frame,config,dem,geology,jshis)
     frame['sample_elevation']=frame.surface_z-frame.depth
-    if 'n_value' in config['numeric_features']:
-        from module.n_matching import prepare_n_data
-        frame = prepare_n_data(frame,config,output,dem,geology,jshis)
-        # Populate separately within each split; never use an in-sample global N feature.
-        frame['n_value'] = np.nan
+    # Resolve the completed N map at distribution time, after phi if requested.
+    frame['n_value'] = np.nan
     frame['source_boring_id']=frame.boring_id
     frame['boring_id']=location_groups(frame,.01)
     frame.to_csv(output/'model_dataset.csv',index=False)
@@ -153,19 +150,11 @@ def prepare(raw=None):
     return report
 
 
-def evaluate(data,config,output,mode,scenario="predicted_n",parts=None):
+def evaluate(data,config,output,mode,scenario="saved_n_distribution",parts=None):
     from module.gamma_training import fit_evaluation
     output.mkdir(parents=True,exist_ok=True)
     if parts is None:
         parts=split_data(data,dict(config['validation'],mode=mode),target_column='target')
-    if scenario == 'measured_n':
-        parts=tuple(part.assign(n_value=part.n_measured) for part in parts)
-    elif scenario != 'predicted_n':
-        raise ValueError(f'Unsupported c N comparison scenario: {scenario}')
-    elif 'n_value' in config['numeric_features']:
-        from module.n_feature_pipeline import evaluation_features
-        spt = pd.read_csv(TRAINING/'c/model_A/n_spt.csv')
-        parts = evaluation_features(parts,spt,config,output/'n_models',dict(config['validation'],mode=mode))
     if min(map(len,parts))<2: raise ValueError('Model A evaluation requires at least two rows in each split')
     numeric,categorical=config['numeric_features'],config['categorical_features']
     model,transform,predicted=fit_evaluation(parts,numeric,categorical,config['xgb_parameters'])
@@ -175,7 +164,10 @@ def evaluate(data,config,output,mode,scenario="predicted_n",parts=None):
     test=parts[2];table=test.copy();table['predicted_c_effective_kpa']=predicted
     table.to_csv(output/'test_predictions.csv',index=False);save_split(parts,output/'split.csv')
     metrics={'test':regression_metrics(test.target,predicted),'best_n_estimators':int(model.best_iteration)+1,
-             'mode':mode,'scenario':scenario,'rows':{k:len(p) for k,p in zip(('train','validation','test'),parts)},
+             'mode':mode,'scenario':scenario,
+             'evaluation_scope':('conditional_on_precomputed_N_distribution; upstream_holdout_independence_not_verified'
+                                 if 'n_value' in numeric else 'c_holdout_without_N'),
+             'n_distribution_source':config.get('n_distribution_source'), 'rows':{k:len(p) for k,p in zip(('train','validation','test'),parts)},
              'holes':{k:int(p.boring_id.nunique()) for k,p in zip(('train','validation','test'),parts)},
              'unit':'kPa','prediction_lower_bound':0.}
     (output/'metrics.json').write_text(json.dumps(metrics,indent=2)+'\n')
@@ -188,52 +180,7 @@ def evaluate(data,config,output,mode,scenario="predicted_n",parts=None):
     return metrics
 
 
-def compare_n_conditions(data,config,output,mode):
-    """Evaluate predicted-N on all c samples; compare measured-N only if splitable."""
-    if 'n_value' not in config['numeric_features']:
-        return evaluate(data,config,output,mode)
-    output.mkdir(parents=True,exist_ok=True)
-    common=data.loc[data.n_measured.notna()].copy()
-    required_holes=5
-    measured_available=common.boring_id.nunique()>=required_holes
-    results={}
-    if measured_available:
-        parts=split_data(common,dict(config['validation'],mode=mode),target_column='target')
-        measured_available=min(map(len,parts))>=2
-    if measured_available:
-        evaluation_data=common
-        parts=tuple(part.copy() for part in parts)
-        save_split(parts,output/'common_split.csv')
-        scenarios=config['n_comparison']['scenarios']
-    else:
-        # Preserve all eligible c samples; predicted N is available through the
-        # leakage-safe upstream pipeline even when observed N does not match.
-        evaluation_data=data
-        parts=split_data(evaluation_data,dict(config['validation'],mode=mode),target_column='target')
-        if min(map(len,parts))<2:
-            raise ValueError('c N comparison requires at least two samples per validation split')
-        save_split(parts,output/'predicted_n_split.csv')
-        scenarios=['predicted_n']
-    for scenario in scenarios:
-        results[scenario]=evaluate(evaluation_data,config,output/scenario,mode,scenario,parts)
-    comparison=[]
-    for scenario in config['n_comparison']['scenarios']:
-        if scenario in results:
-            result=results[scenario]
-            comparison.append({'scenario':scenario,'status':'evaluated',**result['test'],
-                              'training_rows':result['rows']['train'],
-                              'validation_rows':result['rows']['validation'],
-                              'test_rows':result['rows']['test']})
-        else:
-            comparison.append({'scenario':scenario,'status':'unavailable',
-                               'reason':f'measured-N matches only {common.boring_id.nunique()} borehole(s); '
-                                        f'at least {required_holes} required for borehole validation',
-                               'matched_rows':len(common),'matched_boreholes':int(common.boring_id.nunique())})
-    pd.DataFrame(comparison).to_csv(output/'comparison.csv',index=False)
-    return results['predicted_n']
-
-
-def distribute():
+def train(n_distribution_run=None):
     config = load_config()
     run = create_target_directory('c')
     config['output_dir'] = str(run)
@@ -245,14 +192,16 @@ def distribute():
         if preparation['signature']!=signature(config): raise ValueError('Rerun Model A preparation for the current features/spatial settings')
         data=pd.read_csv(TRAINING/'c/model_A/model_dataset.csv')
         (run/'preparation_summary.json').write_text(json.dumps(preparation,indent=2)+'\n')
-        mode=config['validation']['mode'];primary=compare_n_conditions(data,config,run/'evaluation'/mode,mode)
         n_artifact = None
         if 'n_value' in config['numeric_features']:
-            from module.n_feature_pipeline import crossfit_features, fit_grid_artifact
-            spt = pd.read_csv(TRAINING/'c/model_A/n_spt.csv')
-            data = crossfit_features(data,spt,config,run/'n_models/refit')
+            from module.c_n_distribution import materialize, attach
+            n_artifact = materialize(config['n_distribution'],config,run/'n_distribution',n_distribution_run)
+            data = attach(data,n_artifact)
+            config['n_distribution_source'] = n_artifact['metadata']
+            write_config_snapshot(config, run, 'c')
             data.to_csv(run/'final_training_n_features.csv',index=False)
-            n_artifact = fit_grid_artifact(spt,data,config,run/'n_models/grid')
+        mode=config['validation']['mode']
+        primary=evaluate(data,config,run/'evaluation'/mode,mode)
         numeric,categorical=config['numeric_features'],config['categorical_features']
         transform=build_preprocessor(numeric,categorical)
         x=transform.fit_transform(model_frame(data,numeric,categorical))
@@ -271,18 +220,23 @@ def distribute():
         pd.DataFrame({'feature':transform.get_feature_names_out(),'importance':model.feature_importances_}).sort_values('importance',ascending=False).to_csv(output/'feature_importance.csv',index=False)
         import shutil
         evaluation_output=run/'evaluation'/mode
-        if 'n_value' in numeric: evaluation_output=evaluation_output/'predicted_n'
         shutil.copyfile(evaluation_output/'observed_vs_predicted.png',output/'observed_vs_predicted_test.png')
         shutil.copyfile(evaluation_output/'test_predictions.csv',output/'test_predictions.csv')
         from module.all_observed_reporting import save_all_observed
         metrics['all_observed'] = save_all_observed(
             data, np.maximum(model.predict(x), 0.), 'target', 'predicted_c_kpa', output,
             'observed_vs_predicted.png', "effective cohesion c' [kPa]")
-        from module.c_prediction import predict_grid
-        status.update(predict_grid(config,model,transform,metrics,run/'grid',n_artifact=n_artifact))
+        status.update(status='trained')
     except Exception as error:
         status.update(status='failed',error=str(error))
         (run/'run_summary.json').write_text(json.dumps(status,indent=2)+'\n')
         raise
     (run/'run_summary.json').write_text(json.dumps(status,indent=2)+'\n')
     return {**status,'output':str(run)}
+
+
+def distribute(n_distribution_run=None):
+    """Compatibility API: explicitly train and then predict."""
+    from module.backends.xgboost import train as train_target, predict
+    result = train_target('c',n_distribution_run=n_distribution_run)
+    return predict('c', Path(result['output']))

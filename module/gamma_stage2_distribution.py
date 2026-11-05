@@ -191,7 +191,7 @@ def predict(config, builder, max_chunks=None):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='config/gamma/stage2_distribution.json')
+    parser.add_argument('--config', default='config/gamma/stage2/f4_distribution.json')
     parser.add_argument('--stage', choices=['train', 'predict', 'all'], default='all')
     parser.add_argument('--max-chunks', type=int)
     args = parser.parse_args()

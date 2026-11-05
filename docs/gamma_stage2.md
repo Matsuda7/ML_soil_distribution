@@ -1,8 +1,8 @@
 # 湿潤γの第二段階ベースライン
 
-実行：`python -m module.gamma_stage2 --config config/gamma/stage2.json`
+実行：`python -m module.gamma_stage2 --config config/gamma/stage2/baseline.json`
 
-説明変数は `config/gamma/stage2.json` の `numeric_features` と `categorical_features` で変更します。比較ごとに `output` を別ディレクトリに変更してください。追加する列は入力CSVに用意する必要があります。SolphyJ・地質情報の取得・処理は実装していません。
+説明変数は `config/gamma/stage2/baseline.json` の `numeric_features` と `categorical_features` で変更します。比較ごとに `output` を別ディレクトリに変更してください。追加する列は入力CSVに用意する必要があります。SolphyJ・地質情報の取得・処理は実装していません。
 
 ## 修正前の確認
 

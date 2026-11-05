@@ -1,9 +1,20 @@
 {
   "targets": [
-    "c",
-    "phi",
-    "gamma"
+    "c"
   ],
   "sources": [],
-  "soiltest_bbox": "37.60,136.50,36.90,137.50"
+  "soiltest_bbox": "37.60,136.50,36.90,137.50",
+  // falseにした工程は実行しません。省略した工程はtrueです。
+  "stages": {
+    "01_collect": true,
+    "02_prepare": true,
+    "03_train": true,
+    "04_distribute": true
+  },
+  // 03を省略する場合の保存済み学習結果。nullは最新の03完了結果です。
+  "reuse_runs": {
+    "phi": null,
+    "c": null,
+    "gamma": null
+  }
 }

@@ -1,6 +1,6 @@
 # N値導入方法の比較（コード実装済み・未実行）
 
-設定はconfig/gamma/n_comparison.json。enabled=trueでγの実行時に比較を追加します。
+設定はconfig/gamma/n_comparison/settings.json。enabled=trueでγの実行時に比較を追加します。
 config/gamma/prediction.jsonのcreate_distribution=falseにすると、比較だけを行います。
 `python run_analysis.py --targets gamma` で収集確認→整理→比較を実行する構成です。
 今回は解析・学習・テストを実行していません。既存結果は今回のコードによる結果ではありません。
@@ -69,13 +69,13 @@ results/YYYYMMDD/gamma_wet/n_comparison/（乾燥はgamma_dry）
 
 図・表には密度[g/cm³]の評価と単位体積重量[kN/m³]の評価を保存します。
 比較のみの実行も日付・種類ごとのディレクトリに保存します。同日の既存結果はarchive/へ退避します。
-分布モデルはconfig/gamma/prediction.jsonのdistribution_modelで明示指定します。現在はpredicted_nを採用しています。test精度から自動採用しません。
-cは一時保留。N値導入比較とpredicted_nの全域分布への接続を実装しました（変更後の実行は未実施）。
+分布モデルはconfig/gamma/prediction.jsonのdistribution_modelで明示指定します。現在の設定はno_nで、N値比較は無効です。以下のpredicted_nの説明は、その条件を有効にした場合の動作です。test精度から自動採用しません。
+cは独立した保存済みN分布の再利用経路を使用します。この文書はγのN値比較経路の説明です。
 
 
-## 採用モデル：predicted_n
+## predicted_nを選択した場合
 
-config/gamma/prediction.jsonのdistribution_modelをpredicted_nに設定しました。
+config/gamma/prediction.jsonのdistribution_modelをpredicted_nに設定し、N比較も有効にすると、以下の処理を行います。
 主要試料のみを対象に、全主要試料の交差適合による推定N値で乾燥・湿潤γを再学習します。
 補助試料・信頼性指標は説明変数に加えません。木数は主評価モードのpredicted_nのvalidationで決めた値を使います。
 N値モデルはφの特徴量設定・パラメータ・複数seedの平均・上限50を使用します。

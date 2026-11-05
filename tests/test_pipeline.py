@@ -48,62 +48,57 @@ class ModelingTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
-    def test_collection_conflict_blocks_downstream_processing(self):
+    """Orchestration tests use hooks only; no model training in these cases."""
+    def run_case(self, stages, targets, backend):
+        from types import SimpleNamespace
         with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            config = root / 'config.json'
-            config.write_text('{}')
-            with patch.object(pipeline, 'RESULTS', root), \
-                 patch.object(pipeline, 'collect', side_effect=ValueError('conflicting source')), \
-                 patch('module.preparation.prepare_phi') as preparation, \
-                 patch('module.distributions.distribute') as distribution:
-                self.assertEqual(pipeline.run(config_path=config), 2)
-                preparation.assert_not_called()
-                distribution.assert_not_called()
-            report = json.loads((date_directory(root) / 'run_summary.json').read_text())
-            self.assertEqual(report['stages']['distribute']['phi']['status'], 'blocked')
+            root=Path(tmp);config=root/'pipeline.jsonc'
+            config.write_text(json.dumps(dict(stages=stages,targets=targets)))
+            with patch('module.model_backend.selected_model',return_value='xgboost'), \
+                 patch('module.model_backend.get_backend',return_value=backend), \
+                 patch.object(pipeline,'RESULTS',root), \
+                 patch.object(pipeline,'missing_inputs',return_value=[]), \
+                 patch('module.run_artifacts.trained_run',return_value=root/'saved'):
+                code=pipeline.run(config_path=config)
+            report=json.loads((date_directory(root)/'run_summary.json').read_text())
+            return code,report
 
-    def test_all_stages_in_order_and_shared_strength_extracted_once(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            config = root / 'config.json'
-            config.write_text('{}')
-            events = []
-            def collect(*args):
-                events.append('collect')
-                return {'files': []}
-            def prepare_phi():
-                events.append('prepare_phi')
-                return {'status': 'prepared'}
-            def prepare_strength(targets):
-                events.append('prepare_strength')
-                return {t: {'status': 'prepared'} for t in targets}
-            def distribute(target):
-                events.append('distribute_' + target)
-                return {'status': 'complete' if target == 'phi' else 'not_implemented'}
-            with patch.object(pipeline, 'RESULTS', root / 'results'), \
-                 patch.object(pipeline, 'collect', side_effect=collect), \
-                 patch.object(pipeline, 'missing_inputs', return_value=[]), \
-                 patch('module.preparation.prepare_phi', side_effect=prepare_phi), \
-                 patch('module.preparation.prepare_strength', side_effect=prepare_strength) as strength, \
-                 patch('module.distributions.distribute', side_effect=distribute):
-                code = pipeline.run(config_path=config)
-            self.assertEqual(code, 2)
-            strength.assert_called_once_with(['c', 'gamma'])
-            self.assertEqual(events, ['collect', 'prepare_phi', 'prepare_strength', 'distribute_c', 'distribute_phi', 'distribute_gamma'])
-            report = json.loads((date_directory(root / 'results') / 'run_summary.json').read_text())
-            self.assertEqual(report['status'], 'incomplete')
+    def test_step_switches_are_strict(self):
+        self.assertEqual(pipeline.resolve_stages({'stages':{'01_collect':False,'02_prepare':False}}),('train','distribute'))
+        with self.assertRaises(ValueError):pipeline.resolve_stages({'stages':{'03_train':'false'}})
+        with self.assertRaises(ValueError):pipeline.resolve_stages({'stages':{'wrong':True}})
 
-    def test_missing_grid_prevents_expensive_training(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            config = root / 'config.json'
-            config.write_text('{}')
-            with patch.object(pipeline, 'RESULTS', root), \
-                 patch.object(pipeline, 'missing_inputs', return_value=['grid.txt']), \
-                 patch('module.distributions.distribute') as distribution:
-                self.assertEqual(pipeline.run('distribute', ('phi',), config), 2)
-                distribution.assert_not_called()
+    def test_prediction_only_never_calls_training_or_preparation(self):
+        from unittest.mock import Mock
+        backend=Mock()
+        backend.predict.return_value={'status':'complete','output':'saved'}
+        code,report=self.run_case(dict(zip(pipeline.STAGE_KEYS.values(),[False,False,False,True])),['phi'],backend)
+        self.assertEqual(code,0);backend.prepare.assert_not_called();backend.train.assert_not_called()
+        backend.predict.assert_called_once()
+        self.assertEqual(report['enabled_stages'],['04_distribute'])
+
+    def test_phi_distribution_precedes_c_training(self):
+        from unittest.mock import Mock
+        events=[];backend=Mock()
+        def train(target,**kwargs):
+            events.append('train_'+target)
+            if target=='c':self.assertEqual(kwargs['n_distribution_run'],'phi_saved')
+            return {'status':'trained','output':target+'_saved'}
+        def predict(target,path,**kwargs):
+            events.append('predict_'+target)
+            return {'status':'complete','output':target+'_saved'}
+        backend.train.side_effect=train;backend.predict.side_effect=predict
+        code,_=self.run_case({'01_collect':False,'02_prepare':False},['c','phi'],backend)
+        self.assertEqual(code,0)
+        self.assertEqual(events,['train_phi','predict_phi','train_c','predict_c'])
+
+    def test_failed_phi_never_falls_back_for_c(self):
+        from unittest.mock import Mock
+        backend=Mock();backend.train.side_effect=RuntimeError('failed phi')
+        code,report=self.run_case({'01_collect':False,'02_prepare':False},['phi','c'],backend)
+        self.assertEqual(code,2);backend.train.assert_called_once();backend.predict.assert_not_called()
+        self.assertEqual(report['stages']['train']['c']['status'],'blocked')
+
 
 
 if __name__ == '__main__':

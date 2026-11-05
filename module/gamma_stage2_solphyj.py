@@ -146,7 +146,7 @@ def delta_table(scores: pd.DataFrame) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", default="config/gamma/stage2_solphyj.json")
+    parser.add_argument("--config", default="config/gamma/stage2/solphyj.json")
     args = parser.parse_args()
     config = json.loads(project_path(args.config).read_text(encoding="utf-8"))
     if config["sample_weight"] != 1.0:

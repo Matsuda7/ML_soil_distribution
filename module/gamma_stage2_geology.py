@@ -45,7 +45,7 @@ def attach_geology(frame, out):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', default='config/gamma/stage2_geology.json')
+    parser.add_argument('--config', default='config/gamma/stage2/geology.json')
     args = parser.parse_args()
     settings = json.loads(project_path(args.config).read_text())
     out = project_path(settings['output']); out.mkdir(exist_ok=True, parents=True)

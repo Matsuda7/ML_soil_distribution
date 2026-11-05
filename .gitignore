@@ -8,7 +8,7 @@ __pycache__/
 
 # Local environments
 .venv/
-.venv-tabpfn/
+.venv-*/
 venv/
 env/
 .env

@@ -316,7 +316,7 @@ N値の学習目標と予測値は0～50です。`n_plot_max = 62`は画像カ�
 
 ## 学習データの深度範囲と5-fold CV
 
-`config/phi/model.jsonc` で学習に使う深度範囲を指定します。単位は地表からの深さ（m）、両端を含みます。
+`config/model.json` で学習に使う深度範囲を指定します。単位は地表からの深さ（m）、両端を含みます。
 
 ```json
 "training_min_depth_m": 5.0,
@@ -332,7 +332,7 @@ N値の学習目標と予測値は0～50です。`n_plot_max = 62`は画像カ�
 分布を計算する深度は別設定です。`config/model.json` の `prediction_depth_m` で指定します。
 
 ```bash
-python 03_create_distributions.py --targets phi
+python 04_create_distributions.py --targets phi
 ```
 
 このコマンドで5-fold CV、最終学習、N値とφの分布作成を行います。
@@ -341,7 +341,7 @@ python 03_create_distributions.py --targets phi
 
 ### 5-fold CVの分割と最終モデル
 
-`config/phi/validation.json` は `mode: "borehole"`、`n_splits: 5` を使用します。
+`config/validation.json` は `mode: "borehole"`、`n_splits: 5` を使用します。
 孔IDをソートし、`random_state` でシャッフルして5群に分割します。同じ孔の測定点は必ず同じ群です。
 各foldで4群を学習用、1群を評価用として、全採用点をちょうど1回ずつ評価します。
 4群の中から `validation_size` の割合の孔をearly stopping用に分けて木数を決め、その木数で4群全体を再学習して評価します。
@@ -372,11 +372,11 @@ python 03_create_distributions.py --targets phi
 
 ### N=50を含めるかの切り替え
 
-`config/phi/model.jsonc` の `include_n50` を `true`（含む・既定値）または `false`（除外）に設定します。
+`config/model.json` の `include_n50` を `true`（含む・既定値）または `false`（除外）に設定します。
 通常設定は `true` です。省略した旧設定も `true` として扱います。
 `false` では深度で抽出した後、N=50の行を5-fold CVの分割前に除外します。学習・検証・評価・最終学習のすべてが同じ抽出条件になります。
 上限50に丸められた行も除外対象です。データ原本は変更しません。
-実行は `python 03_create_distributions.py --targets phi`。集約指標CSVの `include_n50` 列と、モデルの設定・メタデータに条件を記録します。
+実行は `python 04_create_distributions.py --targets phi`。集約指標CSVの `include_n50` 列と、モデルの設定・メタデータに条件を記録します。
 保存済みモデルを再描画するときは、そのモデルに保存された条件を使用します。
 
 ### 評価CSVへの実行条件の記載
@@ -385,4 +385,4 @@ python 03_create_distributions.py --targets phi
 修正理由: 指標CSVだけで解析条件を比較・追跡できるようにするためです。過去結果の再出力には実行時の保存設定を使用し、現在の設定ファイルは読みません。古い結果に記録がない設定はnullまたは空欄です。
 
 
-学習に使う深度範囲とN=50の扱いは対象間で揃えるため、`config/model.json`で設定します。φの説明変数は`config/phi/model.jsonc`に置きます。予測深度は`config/model.json`、空間条件は共通の`config/prediction.json`を使い、φ固有の表示・入出力設定は`config/phi/prediction.json`に置きます。
+学習に使う深度範囲とN=50の扱いは対象間で揃えるため、`config/model.json`で設定します。φの説明変数は`config/phi/features.jsonc`に置きます。予測深度は`config/model.json`、空間条件は共通の`config/spatial.json`を使い、φ固有の表示・入出力設定は`config/phi/prediction.json`に置きます。

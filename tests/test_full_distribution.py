@@ -46,21 +46,6 @@ class FullDistributionTests(unittest.TestCase):
             self.assertTrue(np.isnan(a[1]).all())
             self.assertEqual(json.loads((r/'prepare_status.json').read_text())['status'],'complete')
 
-    def test_tabpfn_stop_preserves_resume_position(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            r=Path(tmp);(r/'features').mkdir();(r/'c/tabpfn').mkdir(parents=True)
-            path=r/'features/000001.csv.gz';pd.DataFrame({'x':[0.,10.],'y':[0.,0.],'depth':[5.,5.]}).to_csv(path,index=False)
-            (r/'feature_manifest.json').write_text(json.dumps({'rows':2,'chunks':[{'file':path.name,'sha256':full.sha256(path),'rows':2}]}))
-            (r/'STOP_TABPFN').touch()
-            cfg={'tabpfn':{},'eligible_models':{'c':['tabpfn']},'targets':{'c':{'numeric_features':['x'],'categorical_features':[]}}}
-            spatial={'grid_spacing_m':10.,'property_mask_spacing_m':10.,'property_mask_bounds':{'xmin':0.,'xmax':10.,'ymin':0.,'ymax':10.}}
-            class Pre:
-                def transform(self,x):return x.to_numpy()
-            with patch.object(full,'fit_or_load',return_value=(None,Pre())):
-                full.tabpfn(cfg,spatial,r,r,'low_memory',1)
-            s=json.loads((r/'c/tabpfn/prediction_status.json').read_text())
-            self.assertEqual((s['status'],s['rows'],s['offset']),('stopped',0,0))
-            self.assertFalse((r/'c/tabpfn/distribution.png').exists())
 
 
 if __name__=='__main__':unittest.main()

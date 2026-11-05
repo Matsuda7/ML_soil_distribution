@@ -14,7 +14,7 @@ PROPERTIES = ['representative_total_sand', 'representative_silt', 'representativ
 def main():
     out = project_path('n_test/solphyj_evaluation_borehole')
     out.mkdir(parents=True, exist_ok=False)
-    numeric, categorical = load_model_config(project_path('config/phi/model.jsonc'))
+    numeric, categorical = load_model_config(project_path('config/phi/features.jsonc'))
     numeric = [c for c in numeric if c not in PROPERTIES]
     frame = load_dataset(project_path('data/training/phi/model_dataset.csv'), numeric, categorical)
     frame['row_id'] = np.arange(len(frame))

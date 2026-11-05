@@ -38,9 +38,9 @@ def predict_grid(config,model,transform,metrics,output,n_artifact=None):
         frame=enrich(points,config,dem,geology,jshis)
         frame['sample_elevation']=frame.surface_z-frame.depth
         if 'n_value' in config['numeric_features']:
-            if n_artifact is None: raise ValueError('Missing upstream N model for c prediction')
-            from module.gamma_predicted_n import add_predicted_n
-            frame = add_predicted_n(frame,n_artifact)
+            if n_artifact is None: raise ValueError('Missing saved N distribution for c prediction')
+            from module.c_n_distribution import attach
+            frame = attach(frame,n_artifact)
         values=model.predict(transform.transform(model_frame(frame,config['numeric_features'],config['categorical_features'])))
         if not np.isfinite(values).all(): raise ValueError('Non-finite Model A predictions')
         negative+=int((values<0).sum());values=np.maximum(values,0.)
@@ -48,7 +48,7 @@ def predict_grid(config,model,transform,metrics,output,n_artifact=None):
         table=points[['x','y','depth']].copy();table['c_effective_kpa']=values
         table['elevation']=frame.elevation
         if n_artifact is not None:
-            for name in ('n_value','n_ensemble_std','n_lower','n_upper'): table[name]=frame[name]
+            for name in ('n_value','n_distribution_depth_m','n_grid_distance_m'): table[name]=frame[name]
         path=chunks/f'c_effective_{number:06d}.csv.gz';temporary=path.with_suffix('.gz.tmp')
         table.to_csv(temporary,index=False,compression={'method':'gzip','compresslevel':1});temporary.replace(path)
         total+=len(points)

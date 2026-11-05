@@ -55,13 +55,3 @@ def distribution_plots(display, output):
             ax.set(title=f'{target}: {name} (raw)', xlabel='X [m]', ylabel='Y [m]', aspect='equal')
             fig.colorbar(obj, ax=ax)
         fig.tight_layout(); fig.savefig(output / target / 'distribution_comparison.png', dpi=160); plt.close(fig)
-        if set(names) == {'xgboost', 'tabpfn'}:
-            wide = rows.pivot(index=['x', 'y'], columns='model', values='predicted_raw')
-            delta = wide.tabpfn - wide.xgboost
-            fig, ax = plt.subplots(figsize=(6, 5))
-            limit = max(abs(delta).max(), 1e-9)
-            obj = ax.scatter(wide.index.get_level_values('x'), wide.index.get_level_values('y'),
-                             c=delta, s=3, cmap='coolwarm', vmin=-limit, vmax=limit)
-            ax.set(title=f'{target}: TabPFN - XGBoost', xlabel='X [m]', ylabel='Y [m]', aspect='equal')
-            fig.colorbar(obj, ax=ax); fig.tight_layout()
-            fig.savefig(output / target / 'difference_distribution.png', dpi=160); plt.close(fig)

@@ -1,4 +1,4 @@
-"""Refit after CV and stream identical prediction grids through both models."""
+"""Refit XGBoost after CV and stream prediction grids."""
 from pathlib import Path
 import json
 import joblib
@@ -7,7 +7,6 @@ import pandas as pd
 from module.paths import project_path
 from module.comparison_data import load_target, TARGETS
 from module.comparison_models import build_model, predict_batches, save_model
-from module.tabpfn_runtime import batch_size
 from module.xgb_common import build_preprocessor
 from module.gamma_features import model_frame
 
@@ -61,8 +60,7 @@ def distribute(config, output):
     else:
         source_info = {k: sha256(project_path(spatial[k])) for k in ('grid_input', 'dem_input', 'property_mask')}
     write_json(output / 'distribution_config.json', dict(options=options, spatial=spatial, inputs=source_info,
-               correction='raw predictions preserved; only N-to-phi uses N clipped to [0,50] and existing phi cap',
-               differences='TabPFN minus XGBoost on raw predictions'))
+               correction='raw predictions preserved; only N-to-phi uses N clipped to [0,50] and existing phi cap'))
     fitted = {}
     for name, spec in config['targets'].items():
         metadata_path = output / name / 'dataset.json'
@@ -108,9 +106,7 @@ def distribute(config, output):
             for model_name in config['models']:
                 model, pre = fitted[name, model_name]
                 features = model_frame(frame, spec['numeric_features'], spec['categorical_features'])
-                values = predict_batches(model, dense(pre.transform(features)), batch_size(model_name, config),
-                                         output / name / model_name / 'prediction_runtime.jsonl'
-                                         if model_name == 'tabpfn' else None)
+                values = predict_batches(model, dense(pre.transform(features)), config['batch_size'])
                 predictions[model_name] = values
                 table = frame[['x', 'y', 'depth']].copy()
                 table['predicted_raw'] = values
@@ -126,12 +122,6 @@ def distribute(config, output):
                 # Display every 100 m on the common mesh; prediction CSVs retain every cell.
                 display_mask = (np.round(indices).astype(int) % 10 == 0).all(axis=1)
                 display.append(table.loc[display_mask, ['x', 'y', 'predicted_raw']].assign(target=name, model=model_name))
-            if set(predictions) == {'xgboost', 'tabpfn'}:
-                table = frame[['x', 'y', 'depth']].copy()
-                table['difference_raw'] = predictions['tabpfn'] - predictions['xgboost']
-                dest = output / name / 'difference'
-                dest.mkdir(exist_ok=True)
-                table.to_csv(dest / f'{number:06d}.csv.gz', index=False)
         total += len(frame)
     if total == 0:
         raise ValueError('No prediction grid rows')

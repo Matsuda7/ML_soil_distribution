@@ -1,11 +1,6 @@
-"""Resumable 10 m distributions from an already evaluated comparison run.
-
-Prepare the geographic feature cache and XGBoost grids first; TabPFN consumes
-exactly the same cache. Completed batches are durable and never reinterpreted
-as full-area predictions. No training or prediction rows are subsampled.
-"""
+"""Resumable XGBoost full-area prediction from completed spatial CV."""
 import argparse
-from contextlib import ExitStack, contextmanager
+from contextlib import contextmanager
 import fcntl
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -18,8 +13,7 @@ import pandas as pd
 from module.paths import project_path
 from module.model_comparison import sha256, environment, dense
 from module.comparison_data import load_target, TARGETS
-from module.comparison_models import build_model, save_model, predict_batches, initialize_tabpfn, validate_saved_checkpoint
-from module.tabpfn_runtime import batch_size as configured_batch_size, runtime_override, append_log
+from module.comparison_models import build_model, save_model
 from module.comparison_distribution import grid_chunks
 from module.gamma_config import grid_shape
 from module.gamma_features import model_frame
@@ -57,6 +51,8 @@ def initialize(source, output):
             raise ValueError('Output belongs to a different comparison run')
         return json.loads((output/'config.json').read_text()), json.loads((output/'spatial.json').read_text())
     config = json.loads((source/'config.json').read_text())
+    config['models'] = ['xgboost']
+    config = {k:v for k,v in config.items() if k in ('models','random_state','crs','block_size_m','n_splits','training_depth_m','include_n50','batch_size','save_plots','xgboost','distribution','targets','data_kind','eligible_models')}
     spatial = json.loads(project_path('config/spatial.json').read_text())
     summary = pd.read_csv(source/'metrics_summary.csv')
     eligible = {}
@@ -88,33 +84,25 @@ def initialize(source, output):
     return config, spatial
 
 
-def fit_or_load(target, name, config, source, output, cache_mode='low_memory'):
+def fit_or_load(target, name, config, source, output):
+    if name != 'xgboost':
+        raise ValueError('Only xgboost is supported')
     spec = config['targets'][target]
     expected = json.loads((source/target/'dataset.json').read_text())['source_sha256']
     if sha256(project_path(spec['data'])) != expected:
         raise ValueError(f'{target}: training CSV changed since evaluation')
     dest = output/target/name
     dest.mkdir(parents=True, exist_ok=True)
-    model_file = dest/('model.json' if name=='xgboost' else 'model.tabpfn_fit')
+    model_file = dest/'model.json'
     if model_file.exists() and (dest/'fitted.json').exists():
         pre = joblib.load(dest/'preprocessor.joblib')
-        if name=='xgboost':
-            from xgboost import XGBRegressor
-            model = XGBRegressor(n_jobs=4); model.load_model(model_file)
-        else:
-            runtime = initialize_tabpfn(config['tabpfn'])
-            validate_saved_checkpoint(model_file, config['tabpfn'])
-            from tabpfn import TabPFNRegressor
-            model = TabPFNRegressor.load_from_fit_state(str(model_file), device=runtime['device'])
-            model._soil_runtime = runtime
-            append_log(dest / 'runtime.jsonl', runtime)
+        from xgboost import XGBRegressor
+        model = XGBRegressor(n_jobs=4); model.load_model(model_file)
         return model, pre
     data,_,y,unit = load_target(target,spec,config)
     pre = build_preprocessor(spec['numeric_features'],spec['categorical_features'])
     x = dense(pre.fit_transform(model_frame(data,spec['numeric_features'],spec['categorical_features'])))
     model = build_model(name,config,len(x),x.shape[1])
-    if name=='tabpfn':
-        model.set_params(fit_mode=cache_mode)
     started=time.perf_counter();model.fit(x,data[y].to_numpy())
     joblib.dump(pre,dest/'preprocessor.joblib');save_model(model,name,dest)
     atomic_json(dest/'fitted.json',dict(rows=len(data),unit=unit,parameters=model.get_params(),
@@ -219,88 +207,22 @@ def recompute_xgboost(config,spatial,source,output):
     atomic_json(output/'prepare_status.json',dict(status='complete',stage='dense_xgboost',rows=total,chunks=len(manifest['chunks']),completed_at=now()))
 
 
-def tabpfn(config,spatial,source,output,cache_mode,batch_size,target=None):
-    if cache_mode != config['tabpfn'].get('fit_mode','low_memory'):
-        raise ValueError('Inference mode must match the evaluated CV protocol')
-    manifest=json.loads((output/'feature_manifest.json').read_text())
-    shape=grid_shape(spatial)
-    targets=[t for t,v in config['eligible_models'].items() if 'tabpfn' in v and (target is None or target==t)]
-    for t in targets:
-        dest=output/t/'tabpfn';status_path=dest/'prediction_status.json'
-        if status_path.exists() and json.loads(status_path.read_text())['status']=='complete':continue
-        model,pre=fit_or_load(t,'tabpfn',config,source,output,cache_mode)
-        append_log(dest/'runtime.jsonl', dict(**model._soil_runtime, batch_size=batch_size,
-                                           prediction_points=manifest['rows'], event='start_or_resume'))
-        grid=matrix(dest/'raw.npy',shape)
-        state=json.loads(status_path.read_text()) if status_path.exists() else dict(chunk=0,offset=0,rows=0)
-        total=state['rows'];started=time.perf_counter();initial=total
-        for chunk_index,item in enumerate(manifest['chunks']):
-            if chunk_index < state['chunk']:continue
-            path=output/'features'/item['file']
-            if sha256(path)!=item['sha256']:raise ValueError('Feature cache changed')
-            frame=pd.read_csv(path);spec=config['targets'][t]
-            x=dense(pre.transform(model_frame(frame,spec['numeric_features'],spec['categorical_features'])))
-            xi,yi,_=grid_indices(frame,spatial,shape)
-            offset=state['offset'] if chunk_index==state['chunk'] else 0
-            for start in range(offset,len(frame),batch_size):
-                if (output/'STOP_TABPFN').exists():
-                    atomic_json(status_path,dict(status='stopped',chunk=chunk_index,offset=start,rows=total,
-                                total_rows=manifest['rows'],updated_at=now()))
-                    print('Stopped at a saved batch boundary; remove STOP_TABPFN to resume.',flush=True)
-                    return
-                stop=min(start+batch_size,len(frame))
-                values=predict_batches(model,x[start:stop],batch_size,dest/'prediction_runtime.jsonl')
-                if not np.isfinite(values).all():raise ValueError('Nonfinite TabPFN prediction')
-                grid[yi[start:stop],xi[start:stop]]=values;grid.flush();total+=stop-start
-                elapsed=time.perf_counter()-started
-                atomic_json(status_path,dict(status='running',chunk=chunk_index,offset=stop,rows=total,total_rows=manifest['rows'],
-                            updated_at=now(),elapsed_seconds=elapsed,rows_per_second=(total-initial)/max(elapsed,1e-6)))
-                print(t,'TabPFN',total,'/',manifest['rows'],flush=True)
-        if total!=manifest['rows']:raise ValueError('TabPFN coverage count mismatch')
-        plot_matrix(dest/'raw.npy',spatial,f'{t}: TabPFN',TARGETS[t][1],dest/'distribution.png')
-        xgb=np.load(output/t/'xgboost/raw.npy',mmap_mode='r')
-        delta=matrix(output/t/'difference.npy',shape)
-        for row in range(0,shape[0],100):delta[row:row+100]=grid[row:row+100]-xgb[row:row+100]
-        delta.flush()
-        plot_matrix(output/t/'difference.npy',spatial,f'{t}: TabPFN - XGBoost',TARGETS[t][1],output/t/'difference.png')
-        atomic_json(status_path,dict(status='complete',rows=total,total_rows=manifest['rows'],completed_at=now()))
-        del model
-
-
 def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--comparison-run',required=True)
     parser.add_argument('--output',required=True)
-    parser.add_argument('--stage',choices=['prepare','xgboost','tabpfn','all'],default='all')
-    parser.add_argument('--cache-mode',choices=['low_memory','fit_preprocessors','fit_with_cache'],default='low_memory')
-    parser.add_argument('--batch-size',type=int,default=None,help='Override tabpfn.predict_batch_size')
-    parser.add_argument('--runtime-config',help='JSON with tabpfn CPU threads/device/batch size overrides only')
-    parser.add_argument('--target',choices=['c','gamma_wet','gamma_dry'])
-    parser.add_argument('--plan',action='store_true',help='Show requested actions without fitting, predicting or writing results')
-    parser.add_argument('--resume',action='store_true',help='Explicitly clear STOP_TABPFN and resume saved batches')
+    parser.add_argument('--stage',choices=['prepare','xgboost','all'],default='all')
+    parser.add_argument('--plan',action='store_true',help='Show actions without fitting, predicting or writing results')
     args=parser.parse_args(argv)
-    if args.batch_size is not None and args.batch_size<1:parser.error('batch-size must be positive')
-    if args.resume and args.stage not in ('tabpfn','all'):
-        parser.error('--resume requires --stage tabpfn or all')
     source=project_path(args.comparison_run);output=project_path(args.output)
     if args.plan:
         print(json.dumps(dict(comparison_run=str(source),output=str(output),stage=args.stage,
-                         target=args.target,batch_size=args.batch_size,cache_mode=args.cache_mode,
-                         resume=args.resume,analysis_executed=False),indent=2))
+                              analysis_executed=False),indent=2))
         return 0
-    if args.stage in ('tabpfn','all') and (output/'STOP_TABPFN').exists() and not args.resume:
-        parser.error('STOP_TABPFN is present. Use --resume only when you want to restart analysis.')
     config,spatial=initialize(source,output)
-    if args.stage in ('tabpfn','all'):
-        runtime_override(config,args.runtime_config)
-        args.batch_size = args.batch_size if args.batch_size is not None else configured_batch_size('tabpfn',config)
-    with ExitStack() as stack:
-        if args.stage in ('prepare','xgboost','all'):stack.enter_context(job_lock(output/'xgboost.lock'))
-        if args.stage in ('tabpfn','all'):stack.enter_context(job_lock(output/'tabpfn.lock'))
-        if args.resume:(output/'STOP_TABPFN').unlink(missing_ok=True)
+    with job_lock(output/'xgboost.lock'):
         if args.stage in ('prepare','all'):prepare(config,spatial,source,output)
         if args.stage=='xgboost':recompute_xgboost(config,spatial,source,output)
-        if args.stage in ('tabpfn','all'):tabpfn(config,spatial,source,output,args.cache_mode,args.batch_size,args.target)
     return 0
 
 

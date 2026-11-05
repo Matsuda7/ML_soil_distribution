@@ -10,7 +10,7 @@ from module.xgb_common import regression_metrics
 
 
 def main():
-    config = json.loads(project_path('config/gamma/stage2_integrated.json').read_text())
+    config = json.loads(project_path('config/gamma/stage2/integrated.json').read_text())
     source = project_path(config['output'])
     out = project_path('gamma_test/stage2_f4_jshis_borehole')
     out.mkdir(exist_ok=False)

@@ -1,4 +1,4 @@
-"""Reproducible spatial comparison, separate from legacy analysis outputs."""
+"""Reproducible XGBoost spatial evaluation, separate from standard analysis outputs."""
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from importlib.metadata import version, PackageNotFoundError
@@ -19,7 +19,6 @@ from module.xgb_common import build_preprocessor, load_jsonc_config
 from module.gamma_features import model_frame
 from module.comparison_data import load_target, spatial_folds, TARGETS
 from module.comparison_models import build_model, predict_batches, save_model
-from module.tabpfn_runtime import batch_size
 from module.comparison_reporting import metrics, plots
 
 
@@ -37,7 +36,7 @@ def sha256(path):
 
 def environment():
     packages = {}
-    for name in ('numpy', 'pandas', 'scipy', 'scikit-learn', 'xgboost', 'torch', 'tabpfn', 'joblib'):
+    for name in ('numpy', 'pandas', 'scipy', 'scikit-learn', 'xgboost', 'joblib'):
         try:
             packages[name] = version(name)
         except PackageNotFoundError:
@@ -46,7 +45,7 @@ def environment():
         return subprocess.check_output(['git', *args], cwd=ROOT, text=True).strip()
     return dict(python=platform.python_version(), platform=platform.platform(), cpu=platform.processor(),
                 packages=packages, git_sha=git('rev-parse', 'HEAD'), git_status=git('status', '--short'),
-                timing='wall seconds; fit includes model initialization; predict includes lazy TabPFN work')
+                timing='wall seconds; fit includes model initialization; predict includes batching')
 
 
 def dense(values):
@@ -91,8 +90,7 @@ def evaluate_target(name, spec, config, output):
                 model.fit(xt, data.loc[train, target].to_numpy())
                 fit_seconds = perf_counter() - started
                 started = perf_counter()
-                pred = predict_batches(model, xv, batch_size(model_name, config),
-                                       dest / 'prediction_runtime.jsonl' if model_name == 'tabpfn' else None)
+                pred = predict_batches(model, xv, config['batch_size'])
                 predict_seconds = perf_counter() - started
                 table = splits.loc[test].copy()
                 table['target'] = name; table['model'] = model_name
@@ -153,8 +151,8 @@ def run_comparison(config_path, models=None, targets=None):
     selected = config['models']
     if config.get('data_kind', 'observed') not in ('observed', 'synthetic'):
         raise ValueError('data_kind must be observed or synthetic')
-    if not selected or len(set(selected)) != len(selected) or set(selected) - {'xgboost', 'tabpfn'}:
-        raise ValueError('models must contain xgboost and/or tabpfn without duplicates')
+    if selected != ['xgboost']:
+        raise ValueError('models must be [xgboost]')
     if not config['targets'] or set(config['targets']) - set(TARGETS):
         raise ValueError('Unknown or empty comparison targets')
     now = datetime.now(ZoneInfo('Asia/Tokyo'))
@@ -166,25 +164,11 @@ def run_comparison(config_path, models=None, targets=None):
     info = environment()
     info['started_at'] = now.isoformat()
     info['source_files_sha256'] = {str(p.relative_to(ROOT)): sha256(p)
-                                    for pattern in ('module/*.py', 'config/comparison.json', 'requirements*.txt')
+                                    for pattern in ('module/**/*.py', 'config/xgboost/evaluation.json', 'requirements.txt')
                                     for p in ROOT.glob(pattern)}
     info['thread_environment'] = {k: os.environ.get(k)
                                    for k in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS')}
     info['xgboost_device'] = config['xgboost'].get('device', 'cpu')
-    if 'tabpfn' in selected:
-        try:
-            from module.comparison_models import tabpfn_device
-            info['tabpfn_device'] = tabpfn_device(config['tabpfn'])
-            if info['tabpfn_device'] == 'cuda':
-                import torch
-                info['gpu_name'] = torch.cuda.get_device_name(0)
-                info['cuda_version'] = torch.version.cuda
-        except (ImportError, RuntimeError, ValueError) as error:
-            info['tabpfn_device'] = f'unavailable: {error}'
-    checkpoint = project_path(config['tabpfn']['model_path'])
-    if checkpoint.is_file():
-        info['tabpfn_checkpoint_sha256'] = sha256(checkpoint)
-    info['tabpfn_model_family'] = config['tabpfn'].get('model_version', 'v2')
     write_json(output / 'environment.json', info)
     freeze = subprocess.run([sys.executable, '-m', 'pip', 'freeze'],
                             capture_output=True, text=True)

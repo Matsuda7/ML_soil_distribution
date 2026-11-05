@@ -1,1 +1,1 @@
-"""Shared data preparation, modeling, and distribution functions."""
+"""Shared pipeline, data processing and model implementation modules."""

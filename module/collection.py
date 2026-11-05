@@ -85,11 +85,7 @@ def missing_inputs(target: str, stage: str) -> list[str]:
         from module.c_model_a import load_config
         c_config = load_config()
         cfg = c_config['spatial']
-        missing_n = []
-        if 'n_value' in c_config['numeric_features'] and not project_path(c_config['n_comparison']['spt_input']).is_file():
-            missing_n.append(c_config['n_comparison']['spt_input'])
         missing = [] if any((RAW / 'soiltest/strength').rglob('*.xml')) else ['data/raw/soiltest/strength/**/*.xml']
-        missing += missing_n
         for key in (('dem_input','grid_input','property_mask') if stage == 'distribute' else ('dem_input',)):
             if not project_path(cfg[key]).is_file(): missing.append(str(cfg[key]))
         for folder, pattern in [('geology','*_poly.shp'),('jshis','Z-V4-JAPAN-AMP-VS400_M250.csv')]:

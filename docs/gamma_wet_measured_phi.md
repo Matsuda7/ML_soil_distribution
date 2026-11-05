@@ -3,8 +3,8 @@
 2026-09-26：通常のγパイプラインを、実測湿潤密度から換算したγのみで学習する設定に変更しました。疑似γを使用する過去の二段階実験とは別です。
 
 - `config/gamma/prediction.json`: `gamma_kind=wet`、`distribution_model=no_n`
-- `config/gamma/n_comparison.json`: `enabled=false`。予測N値の追加や実測N値の対応有無による絞り込みを行いません。
-- `config/gamma/model.jsonc`: 変更時点のφと同じ説明変数を指定。
+- `config/gamma/n_comparison/settings.json`: `enabled=false`。予測N値の追加や実測N値の対応有無による絞り込みを行いません。
+- `config/gamma/features.jsonc`: 変更時点のφと同じ説明変数を指定。
 
 数値変数：depth、jshis_avs30、jshis_arv、slope、curvature、sample_elevation。
 カテゴリ変数：symbol、jshis_jcode、soil_inventory_ssg。

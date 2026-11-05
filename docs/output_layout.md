@@ -38,7 +38,7 @@ gammaの比較・学習・分布は選択した側だけ実行します。共通
 同じ日・同じ対象の再実行では、既存結果を `archive/<対象>_<時刻>_<識別子>/` へ移してから作成します。
 別の対象や湿潤・乾燥の結果は保持します。失敗時も当該対象の `run_summary.json` に状態を記録します。
 従来の `runs/`・`latest.json` は作成しません。基盤面作成は廃止しました。
-試験地点図を作る独立コマンドの保存先は `config/test_locations.json` で指定します。
+試験地点図を作る独立コマンドの既定保存先はresults/test_locationsです。必要時は `python -m module.test_locations --output-dir 保存先` で変更できます。
 
 ## 二次元テキスト
 

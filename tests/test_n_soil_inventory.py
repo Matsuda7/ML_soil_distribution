@@ -36,6 +36,6 @@ class SoilInventoryTests(unittest.TestCase):
         self.assertTrue(result[COLUMNS].iloc[1:].isna().all(axis=None))
 
     def test_active_config_uses_inventory_instead_of_texture(self):
-        numeric, categorical = load_model_config(CONFIG/'phi/model.jsonc')
+        numeric, categorical = load_model_config(CONFIG/'phi/features.jsonc')
         self.assertIn(SOIL_CATEGORY, categorical)
         self.assertFalse(set(COLUMNS) & set(numeric))

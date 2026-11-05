@@ -39,7 +39,7 @@ from module.xgb_common import (build_regressor, borehole_train_validation_test_s
 # Configuration
 # -----------------------------------------------------------------------------
 INPUT_CSV = project_path("data/training/phi/model_dataset.csv")
-MODEL_CONFIG = project_path("config/phi/model.jsonc")
+MODEL_CONFIG = project_path("config/phi/features.jsonc")
 from contextlib import contextmanager
 from contextvars import ContextVar
 from module.output_layout import current_directory
@@ -634,7 +634,7 @@ def _main() -> None:
     metrics["include_n50"] = include_n50
     metrics["training_n_filter"] = dict(data.attrs['training_n_filter'])
     metrics["training_dataset"] = str(INPUT_CSV)
-    metrics["feature_selection"] = "config/phi/model.jsonc"
+    metrics["feature_selection"] = "config/phi/features.jsonc"
     metrics["model_config"] = str(MODEL_CONFIG)
     metrics["shared_model_config"] = "config/model.json"
     metrics["model_settings"] = {**model_config, 'numeric_features': numeric_features,

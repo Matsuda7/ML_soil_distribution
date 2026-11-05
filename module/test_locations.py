@@ -12,7 +12,11 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
-from module.paths import CONFIG, project_path
+from module.paths import project_path
+
+DEFAULT_XML_DIR = 'data/raw/soiltest/strength'
+DEFAULT_SPATIAL_CONFIG = 'config/spatial.json'
+DEFAULT_OUTPUT_DIR = 'results/test_locations'
 
 DATUM_CRS = {'00': 'EPSG:4301', '01': 'EPSG:4612', '02': 'EPSG:6668'}
 C_FIELDS = ['c_total', 'c_effective']
@@ -125,10 +129,9 @@ def build_sites(frame, xml_dir, target_crs):
     return sites, excluded
 
 
-def create_map(config_path, output_dir=None):
-    options = json.loads(Path(config_path).read_text(encoding='utf-8'))
-    config = json.loads(project_path(options['prediction_config']).read_text(encoding='utf-8'))
-    output = Path(output_dir) if output_dir is not None else project_path(options['output_dir'])
+def create_map(output_dir=None, *, xml_dir=DEFAULT_XML_DIR, spatial_config=DEFAULT_SPATIAL_CONFIG):
+    config = json.loads(project_path(spatial_config).read_text(encoding='utf-8'))
+    output = project_path(output_dir if output_dir is not None else DEFAULT_OUTPUT_DIR)
     output.mkdir(parents=True, exist_ok=True)
     bounds = config['property_mask_bounds']
     spacing = float(config['property_mask_spacing_m'])
@@ -136,8 +139,8 @@ def create_map(config_path, output_dir=None):
         raise ValueError('Mask spacing must be positive')
     shape = (int(round((bounds['ymax']-bounds['ymin'])/spacing))+1,
              int(round((bounds['xmax']-bounds['xmin'])/spacing))+1)
-    frame = load_test_records(project_path(options['xml_dir']))
-    sites, excluded = build_sites(frame, project_path(options['xml_dir']), config['grid_crs'])
+    frame = load_test_records(project_path(xml_dir))
+    sites, excluded = build_sites(frame, project_path(xml_dir), config['grid_crs'])
     mask = read_binary_mask(project_path(config['property_mask']), shape)
     segments = boundary_segments(mask, bounds, spacing)
     sites['inside_prop_extent'] = sites.x.between(bounds['xmin'], bounds['xmax']) & sites.y.between(bounds['ymin'], bounds['ymax'])
@@ -187,7 +190,13 @@ def create_map(config_path, output_dir=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--config', type=Path, default=CONFIG/'test_locations.json')
+    parser.add_argument('--output-dir', type=Path, default=None)
+    parser.add_argument('--xml-dir', type=Path, default=DEFAULT_XML_DIR)
+    parser.add_argument('--spatial-config', type=Path, default=DEFAULT_SPATIAL_CONFIG)
     args = parser.parse_args(argv)
-    create_map(project_path(args.config))
+    create_map(args.output_dir, xml_dir=args.xml_dir, spatial_config=args.spatial_config)
     return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
