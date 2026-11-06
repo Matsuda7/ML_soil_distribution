@@ -1,7 +1,7 @@
-# XGB_soil_distribution
+# ML_soil_distribution
 
 c（粘着力）、φ（内部摩擦角）、γ（単位体積重量）の分布作成を、1つのGitリポジトリで管理します。
-統合先は `XGB_soil_distribution` フォルダです。
+統合先は `ML_soil_distribution` フォルダです。
 
 ## 解析の流れ
 
@@ -192,7 +192,7 @@ depth、sample_elevation、slope、curvatureと、symbol、jshis_jcode、soil_in
 `config/model.json` の prediction_depth_mを変更できます。
 湿潤・乾燥密度[g/cm³]を9.80665倍して単位体積重量[kN/m³]に変換し、`gamma_kind` で選んだ側だけ学習します。
 密度のみのXML試験も収集し、欠損・不正値・DEM範囲外の除外記録を残します。
-学習表は data/training/gamma/、モデルと結果は results/YYYYMMDD/gamma_wet/ または gamma_dry/ に保存します。
+学習表は data/training/xgboost/gamma/、モデルと結果は results/YYYYMMDD/gamma_wet/ または gamma_dry/ に保存します。
 選択した側の grid/gamma_wet.png または gamma_dry.png に、propの0/非0境界を重ねた分布図を出力します。
 数値は10m格子のnpyと圧縮CSV、図の表示間隔は初期値100mです。
 各実行は新規ディレクトリに保存し、既存結果を上書きしません。
@@ -318,7 +318,7 @@ N値・γ・cの予測深度は `config/model.json` の `prediction_depth_m`（m
 
 `config/model.json` の `model` を `"xgboost"` に設定します。
 将来の別モデルはmodule/backends/へ実装し、共通工程の入口はそのまま使用する設計です。
-現在はXGBoostのみ実装済みで、未実装モデルを指定すると解析開始前にエラーにします。
+現在はXGBoostの全工程とTabPFNのc前処理・学習検証・分布作成（02・03・04）に対応しています。
 
 ```bash
 python run_analysis.py
@@ -337,3 +337,20 @@ cだけなら最新の完了済みφ結果を選びます。各試料の深度�
 保存元・N分布深度・最近傍格子への距離を記録します。
 これは保存済みN分布を条件としたcの評価で、上流Nモデルまで含む独立評価ではありません。
 詳細と出力は[config/cの案内](config/c/README.md)を参照してください。
+
+## TabPFN用の有効粘着力学習データ
+
+config/model.jsonのmodelをtabpfnに変更し、`python 02_prepare_data.py --targets c` で学習表を作成します。
+出力形式・欠損値・N分布の扱いは[TabPFN用c前処理](docs/tabpfn_c_preparation.md)を参照してください。
+今回、前処理・学習・推論は実行していません。
+
+## モデル別の学習データ
+
+XGBoostは `data/training/xgboost/`、TabPFNは `data/training/tabpfn/` へ出力します。
+生データは共通の `data/raw/` を使用します。既存の旧配置データは自動移動せず、次回02の実行で新しい配置へ作成します。
+
+TabPFNの03は `python 03_train_validate.py --targets c` で実行します。
+既定は現在の2.2.1/v2用で、ローカル重みの事前配置が必要です。[03の設定と評価条件](docs/tabpfn_c_training.md)を参照してください。
+
+TabPFNの04は `python 04_create_distributions.py --targets c` です。
+03の保存モデルと02のN分布を再利用します。[04の出力と条件](docs/tabpfn_c_prediction.md)を参照してください。

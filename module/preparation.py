@@ -1,7 +1,7 @@
 """Stage two: produce target-specific training tables from common raw data."""
 import json
 import pandas as pd
-from module.paths import INTERIM, TRAINING, RESULTS, LOGS
+from module.paths import INTERIM, RESULTS, LOGS
 
 
 def prepare_strength(targets):
@@ -27,4 +27,4 @@ def prepare_phi():
     boring.main()
     spatial.main()
     spt_dataset.main()
-    return {'status': 'prepared', 'dataset': 'data/training/phi/model_dataset.csv'}
+    return {'status': 'prepared', 'dataset': 'data/training/xgboost/phi/model_dataset.csv'}

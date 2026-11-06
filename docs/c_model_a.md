@@ -56,9 +56,9 @@ config/validation.jsonで孔単位・空間評価を切り替えます。
 
 ## 保存先
 
-- data/training/c/model_A/model_dataset.csv：学習表、元項目・試験種別・元XMLを保持
-- data/training/c/model_A/excluded_records.csv：除外記録
-- data/training/c/model_A/preparation_summary.json：採用件数・孔数・目的値範囲・出典
+- data/training/xgboost/c/model_A/model_dataset.csv：学習表、元項目・試験種別・元XMLを保持
+- data/training/xgboost/c/model_A/excluded_records.csv：除外記録
+- data/training/xgboost/c/model_A/preparation_summary.json：採用件数・孔数・目的値範囲・出典
 - results/YYYYMMDD/c/evaluation/：孔単位・空間評価
 - 同model/：最終モデル・前処理・重要度・評価への参照
 - 同grid/：c_effective.png、c_effective_kpa.npy、圧縮CSVチャンク

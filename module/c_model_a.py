@@ -9,7 +9,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from module.model_reporting import depth_scatter
-from module.paths import RAW, TRAINING, project_path
+from module.paths import RAW, XGBOOST_TRAINING as TRAINING, project_path
 from module.configuration import load_model_settings, load_prediction_settings
 from module.model_reporting import save_model_reports
 from module.xgb_common import load_model_config, build_preprocessor, build_regressor, regression_metrics
@@ -91,10 +91,12 @@ def signature(config):
             'training_depth':config['model_settings']}
 
 
-def prepare(raw=None):
+def prepare(raw=None, output=None):
     from module.soil_tests import load_test_records, project_records
     from module.n_matching import location_groups
-    config=load_config();output=TRAINING/'c/model_A';output.mkdir(parents=True,exist_ok=True)
+    config=load_config()
+    output=Path(output) if output is not None else TRAINING/'c/model_A'
+    output.mkdir(parents=True,exist_ok=True)
     raw=load_test_records(RAW/'soiltest/strength') if raw is None else raw
     frame,rejected=select_targets(raw)
     exclusions=[rejected]

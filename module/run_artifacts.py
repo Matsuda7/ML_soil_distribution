@@ -87,7 +87,7 @@ def archive_grid(run):
         destination = run/'prediction_archive'/(datetime.now().strftime('%Y%m%d_%H%M%S')+'_'+uuid4().hex[:8])
         destination.mkdir(parents=True)
         grid.rename(destination/'grid')
-        for name in ('config.json', 'run_summary.json'):
+        for name in ('config.json', 'run_summary.json', 'prediction_environment.json'):
             path = run/name
             if path.is_file():
                 import shutil

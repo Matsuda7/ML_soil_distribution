@@ -16,7 +16,7 @@ from module.raster import read_binary_mask, boundary_segments
 
 
 def main():
-    source = project_path('data/training/c/model_A/model_dataset.csv')
+    source = project_path('data/training/xgboost/c/model_A/model_dataset.csv')
     output = project_path('data_summary/explanatory_variable/c')
     frame = pd.read_csv(source)
     if frame.empty or not np.isfinite(frame[['x', 'y']].to_numpy()).all():

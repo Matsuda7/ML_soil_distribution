@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 import numpy as np
 import pandas as pd
-from module.c_n_distribution import attach, select_source
+from module.c_n_distribution import attach, select_source, inspect_grid_batch, raise_grid_diagnostics
 from module.pipeline import resolve_targets
 
 
@@ -50,3 +50,52 @@ class SavedNDistributionTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 select_source({'run_directory': str(run)})
 
+
+    def test_diagnostics_separate_coordinate_and_n_failures(self):
+        spatial=self.artifact()['spatial'];grid=np.full((2,2),np.nan)
+        frame=pd.DataFrame(dict(x=[0.,20.,10.,float('nan'),0.],y=[0.,0.,0.,0.,10.],
+                                predicted_n_value=[51.,4.,float('inf'),5.,-1.]))
+        _,_,_,report=inspect_grid_batch(frame,spatial,(2,2),grid,row_offset=100000)
+        self.assertEqual(report['counts']['outside_grid_index_range'],1)
+        self.assertEqual(report['counts']['non_finite_or_non_numeric_coordinates'],1)
+        self.assertEqual(report['counts']['non_finite_or_non_numeric_n'],1)
+        self.assertEqual(report['counts']['n_above_50'],1)
+        self.assertEqual(report['counts']['n_below_zero'],1)
+        self.assertEqual(report['examples']['n_above_50'][0]['csv_row_number'],100002)
+
+    def test_diagnostics_capture_alignment_and_duplicate_rows(self):
+        spatial=self.artifact()['spatial'];grid=np.full((2,2),np.nan);grid[1,1]=7.
+        frame=pd.DataFrame(dict(x=[0.,0.,10.,1.],y=[0.,0.,10.,0.],predicted_n_value=[1.,2.,3.,4.]))
+        _,_,_,report=inspect_grid_batch(frame,spatial,(2,2),grid)
+        self.assertEqual(report['counts']['duplicate_coordinates_in_batch'],3)
+        self.assertEqual(report['counts']['duplicate_coordinates_in_previous_batches'],1)
+        self.assertEqual(report['counts']['coordinates_not_aligned_to_grid'],1)
+
+    def test_failure_diagnostics_are_strict_json_and_csv(self):
+        spatial=self.artifact()['spatial'];grid=np.full((2,2),np.nan)
+        frame=pd.DataFrame(dict(x=[0.],y=[0.],predicted_n_value=[float('inf')]))
+        _,_,_,report=inspect_grid_batch(frame,spatial,(2,2),grid)
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(ValueError,'validation_error.json'):
+                raise_grid_diagnostics('input.csv.gz',Path(tmp),report)
+            payload=json.loads((Path(tmp)/'validation_error.json').read_text())
+            self.assertEqual(payload['counts']['non_finite_or_non_numeric_n'],1)
+            self.assertTrue((Path(tmp)/'validation_error_rows.csv').is_file())
+
+    def test_cropping_ignores_only_known_outside_n_cells(self):
+        spatial=self.artifact()['spatial'];grid=np.full((2,2),np.nan)
+        frame=pd.DataFrame(dict(x=[0.,0.,10.],y=[-10.,0.,0.],predicted_n_value=[999.,2.,3.]))
+        xi,yi,values,report=inspect_grid_batch(frame,spatial,(2,2),grid,crop_outside=True)
+        self.assertEqual(values.tolist(),[2.,3.])
+        self.assertEqual(xi.tolist(),[0,1])
+        self.assertEqual(yi.tolist(),[0,0])
+        self.assertEqual(report['ignored_counts']['outside_requested_grid'],1)
+        self.assertFalse(any(report['counts'].values()))
+
+    def test_cropping_preserves_errors_and_original_csv_row_numbers(self):
+        spatial=self.artifact()['spatial'];grid=np.full((2,2),np.nan)
+        frame=pd.DataFrame(dict(x=[0.,0.,float('nan')],y=[-10.,0.,0.],predicted_n_value=[4.,51.,2.]))
+        _,_,_,report=inspect_grid_batch(frame,spatial,(2,2),grid,row_offset=100,crop_outside=True)
+        self.assertEqual(report['counts']['n_above_50'],1)
+        self.assertEqual(report['counts']['non_finite_or_non_numeric_coordinates'],1)
+        self.assertEqual(report['examples']['n_above_50'][0]['csv_row_number'],103)

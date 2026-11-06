@@ -81,7 +81,7 @@ class OutputLayoutTests(unittest.TestCase):
                 config = {'gamma_kind': kind, 'prediction_depth_m': 1.,
                           'n_comparison': {'enabled': False}, 'create_distribution': True,
                           'distribution_model': 'no_n'}
-                with patch('module.paths.TRAINING', root / 'training'), \
+                with patch('module.paths.XGBOOST_TRAINING', root / 'training'), \
                      patch('module.gamma_config.data_signature', return_value={}), \
                      patch.object(gamma, 'train_both', return_value={kind: 'model'}), \
                      patch.object(gamma, 'predict_grid', return_value={'status': 'complete'}) as predict:

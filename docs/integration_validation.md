@@ -1,6 +1,6 @@
 # 統合時の検証記録（2026-09-11）
 
-統合先は既存の `XGB_gamma_setting`、プロジェクト表示名は `XGB_soil_distribution`。
+統合先は既存の `XGB_gamma_setting`、プロジェクト表示名は `ML_soil_distribution`。
 元のφ・cプロジェクトのソースとGit履歴はそのまま保存。
 
 - 元データとDEMキャッシュ384ファイル、796,133,107 bytesをハードリンクで取り込み。

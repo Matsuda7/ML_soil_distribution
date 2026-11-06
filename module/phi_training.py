@@ -38,7 +38,7 @@ from module.xgb_common import (build_regressor, borehole_train_validation_test_s
 # -----------------------------------------------------------------------------
 # Configuration
 # -----------------------------------------------------------------------------
-INPUT_CSV = project_path("data/training/phi/model_dataset.csv")
+INPUT_CSV = project_path("data/training/xgboost/phi/model_dataset.csv")
 MODEL_CONFIG = project_path("config/phi/features.jsonc")
 from contextlib import contextmanager
 from contextvars import ContextVar

@@ -1,0 +1,4 @@
+# Optional environment for the default v2 stage-03 adapter; not installed by the program.
+-r requirements.txt
+tabpfn==2.2.1
+torch>=2.1,<3

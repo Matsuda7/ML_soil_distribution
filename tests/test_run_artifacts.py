@@ -5,14 +5,16 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from module.run_artifacts import trained_run, archive_grid
-from module.model_backend import selected_model
+from module.model_backend import selected_model, get_backend
 
 
 class RunArtifactsTests(unittest.TestCase):
-    def test_unimplemented_model_never_falls_back(self):
+    def test_tabpfn_stage03_dispatch_is_explicit(self):
         with patch('module.model_backend.load_model_settings',return_value={'model':'tabpfn'}):
-            with self.assertRaisesRegex(ValueError,'not implemented'):
-                selected_model()
+            self.assertEqual(selected_model(),'tabpfn')
+            with patch('module.tabpfn_training.train_cohesion',return_value={'status':'trained'}) as train:
+                self.assertEqual(get_backend().train('c'),{'status':'trained'})
+                train.assert_called_once_with(prepared_data=None)
 
     def test_explicit_run_must_match_target_and_estimator(self):
         with tempfile.TemporaryDirectory() as tmp:

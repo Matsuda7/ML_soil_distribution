@@ -18,7 +18,7 @@ def prepare(targets):
     return result
 
 
-def train(target, gamma_kind=None, n_distribution_run=None, config_override=None):
+def train(target, gamma_kind=None, n_distribution_run=None, config_override=None, prepared_data=None):
     if target == 'phi':
         from module import phi_training, phi_prediction
         from module.output_layout import create_target_directory

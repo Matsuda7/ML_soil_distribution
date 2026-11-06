@@ -8,7 +8,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from module.model_reporting import depth_scatter
 from sklearn.model_selection import GroupKFold
-from module.paths import TRAINING
+from module.paths import XGBOOST_TRAINING as TRAINING
 from module.validation import split_data, save_split
 from module.gamma_features import model_frame
 from module.model_reporting import save_model_reports

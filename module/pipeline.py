@@ -99,9 +99,9 @@ def _run(stage,targets,config_path,download,gamma_kind):
                 entries[target] = dict(status='blocked',reason=block);failed=True;continue
             try:
                 if current == 'train':
-                    missing = missing_inputs(target,'prepare')
+                    missing = missing_inputs(target,'prepare') if estimator=='xgboost' else []
                     if missing: raise FileNotFoundError(f'Missing training inputs: {missing}')
-                    result = backend.train(target,gamma_kind=gamma_kind,n_distribution_run=current_phi)
+                    result = backend.train(target,gamma_kind=gamma_kind,n_distribution_run=current_phi,prepared_data=preparation.get(target))
                     if result['status'] != 'trained': raise RuntimeError('Stage 03 did not complete')
                     run_path = project_path(result['output'])
                 else:

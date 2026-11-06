@@ -17,7 +17,7 @@ config/gamma/prediction.jsonのcreate_distribution=falseにすると、比較だ
 主要データ＝対応する実測N値がある密度試料。補助データ＝実測密度はあるがN値は推定する試料。
 信頼性指標は補助データとは別の列です。
 
-data/training/gamma/n_matching.csvに測定深度・件数・番号・対応方法・深度差を保存します。
+data/training/xgboost/gamma/n_matching.csvに測定深度・件数・番号・対応方法・深度差を保存します。
 同じ位置に複数XMLがある場合も、XY距離で連結した地点を同じグループとして分割します。
 比較対象はγの前処理を通過した試料であり、生XMLの全184地点が必ず含まれるわけではありません。
 

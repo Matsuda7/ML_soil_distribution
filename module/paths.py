@@ -3,6 +3,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data/raw"
 TRAINING = ROOT / "data/training"
+XGBOOST_TRAINING = TRAINING / "xgboost"
+TABPFN_TRAINING = TRAINING / "tabpfn"
 INTERIM = ROOT / "data/interim"
 CACHE = ROOT / "data/cache"
 RESULTS = ROOT / "results"

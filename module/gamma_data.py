@@ -2,7 +2,7 @@
 import json
 import numpy as np
 import pandas as pd
-from module.paths import RAW, TRAINING
+from module.paths import RAW, XGBOOST_TRAINING as TRAINING
 from module.soil_tests import load_test_records, project_records
 from module.gamma_config import KINDS, load_config, data_signature
 from module.gamma_features import load_dem, terrain_at, geographic_context, enrich

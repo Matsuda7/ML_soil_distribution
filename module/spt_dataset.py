@@ -18,7 +18,7 @@ import pandas as pd
 BORING_CSV = project_path("data/raw/boring/BorToCsv.csv")
 SPATIAL_INPUT = project_path("data/interim/boring_geology_jshis.gpkg")
 SPATIAL_LAYER = "boring_geology_jshis"
-OUTPUT_CSV = project_path("data/training/phi/model_dataset.csv")
+OUTPUT_CSV = project_path("data/training/xgboost/phi/model_dataset.csv")
 MAX_MEASUREMENTS = 80
 N_VALUE_CAP = 50.0
 

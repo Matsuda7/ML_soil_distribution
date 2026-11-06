@@ -6,8 +6,9 @@
 python run_analysis.py
 ```
 
-config/model.jsonのmodelでモデルを指定します。現在はxgboostのみ実装済みです。
-tabpfnは将来用で、現時点で指定すると開始前に明確なエラーにします。別モデルでの代替実行は行いません。
+config/model.jsonのmodelでモデルを指定します。現在はxgboostの全工程と、tabpfnの有効粘着力cの02前処理・03学習検証・04分布作成に対応しています。
+tabpfnのphi/gammaは未実装です。別モデルによる代替実行は行いません。
+[TabPFN用c学習表](tabpfn_c_preparation.md)を参照してください。
 config/model.json、共通のvalidation.json・spatial.json、data/はモデル間で共有できる配置です。
 
 ## 工程

@@ -33,7 +33,7 @@
   },
   "targets": {
     "c": {
-      "data": "data/training/c/model_A/model_dataset.csv",
+      "data": "data/training/xgboost/c/model_A/model_dataset.csv",
       "numeric_features": [
         "x",
         "y",
@@ -50,7 +50,7 @@
       ]
     },
     "N": {
-      "data": "data/training/phi/model_dataset.csv",
+      "data": "data/training/xgboost/phi/model_dataset.csv",
       "numeric_features": [
         "x",
         "y",
@@ -67,7 +67,7 @@
       ]
     },
     "gamma_wet": {
-      "data": "data/training/gamma/wet.csv",
+      "data": "data/training/xgboost/gamma/wet.csv",
       "numeric_features": [
         "x",
         "y",
@@ -84,7 +84,7 @@
       ]
     },
     "gamma_dry": {
-      "data": "data/training/gamma/dry.csv",
+      "data": "data/training/xgboost/gamma/dry.csv",
       "numeric_features": [
         "x",
         "y",

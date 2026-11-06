@@ -16,7 +16,7 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     numeric, categorical = load_model_config(project_path('config/phi/features.jsonc'))
     numeric = [c for c in numeric if c not in PROPERTIES]
-    frame = load_dataset(project_path('data/training/phi/model_dataset.csv'), numeric, categorical)
+    frame = load_dataset(project_path('data/training/xgboost/phi/model_dataset.csv'), numeric, categorical)
     frame['row_id'] = np.arange(len(frame))
     crs = json.loads(project_path('config/spatial.json').read_text())['grid_crs']
     soil = gpd.read_file('zip://' + str(project_path('data/raw/soil_inventory/石川_20.zip')), encoding='cp932').to_crs(crs)
@@ -31,7 +31,7 @@ def main():
     frame['solphyj_available'] = frame[PROPERTIES].notna().all(axis=1)
     frame[['row_id', 'boring_id', 'measurement_no', 'SSerGrCD', *PROPERTIES]].to_csv(out/'soil_features.csv', index=False)
     settings = dict(numeric=numeric, categorical=categorical, added=PROPERTIES, parameters=XGB_PARAMETERS,
-                    input='data/training/phi/model_dataset.csv', total=len(frame), soil_available=int(frame.solphyj_available.sum()),
+                    input='data/training/xgboost/phi/model_dataset.csv', total=len(frame), soil_available=int(frame.solphyj_available.sum()),
                     ambiguous_rows=int(ambiguous.sum()), missing_policy='Existing numeric median imputation retained; added SolphyJ numeric NaN passed directly to XGBoost',
                     split_seeds=[42,43,44,45,46])
     (out/'settings.json').write_text(json.dumps(settings, indent=2))

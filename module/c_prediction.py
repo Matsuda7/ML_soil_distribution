@@ -13,7 +13,7 @@ from module.gamma_features import load_dem, geographic_context, enrich, model_fr
 from module.raster import read_binary_mask, boundary_segments, save_text_matrix
 
 
-def predict_grid(config,model,transform,metrics,output,n_artifact=None):
+def predict_grid(config,model,transform,metrics,output,n_artifact=None,feature_builder=None):
     output.mkdir(parents=True,exist_ok=True)
     if any(output.iterdir()): raise FileExistsError('Model A grid output must be empty')
     chunks=output/'chunks';chunks.mkdir()
@@ -21,6 +21,10 @@ def predict_grid(config,model,transform,metrics,output,n_artifact=None):
     mask=read_binary_mask(project_path(spatial['property_mask']),shape)
     grid=np.lib.format.open_memmap(output/'c_effective_kpa.npy',mode='w+',dtype=np.float32,shape=shape)
     grid[:]=np.nan;seen=np.zeros(shape,dtype=bool)
+    raw_grid=None
+    if config.get('retain_raw_predictions',False):
+        raw_grid=np.lib.format.open_memmap(output/'c_effective_raw_kpa.npy',mode='w+',dtype=np.float32,shape=shape)
+        raw_grid[:]=np.nan
     dem=load_dem(config);geology,jshis=geographic_context(config)
     total=0;outside=0;zero=0;negative=0
     reader=pd.read_csv(project_path(spatial['grid_input']),sep=r'\s+',header=None,
@@ -41,18 +45,23 @@ def predict_grid(config,model,transform,metrics,output,n_artifact=None):
             if n_artifact is None: raise ValueError('Missing saved N distribution for c prediction')
             from module.c_n_distribution import attach
             frame = attach(frame,n_artifact)
-        values=model.predict(transform.transform(model_frame(frame,config['numeric_features'],config['categorical_features'])))
+        features=feature_builder(frame) if feature_builder is not None else model_frame(frame,config['numeric_features'],config['categorical_features'])
+        values=model.predict(transform.transform(features))
         if not np.isfinite(values).all(): raise ValueError('Non-finite Model A predictions')
+        raw_values=values
+        if raw_grid is not None:raw_grid[yi,xi]=raw_values
         negative+=int((values<0).sum());values=np.maximum(values,0.)
         grid[yi,xi]=values;seen[yi,xi]=True
         table=points[['x','y','depth']].copy();table['c_effective_kpa']=values
+        if raw_grid is not None:table['c_effective_raw_kpa']=raw_values
         table['elevation']=frame.elevation
         if n_artifact is not None:
             for name in ('n_value','n_distribution_depth_m','n_grid_distance_m'): table[name]=frame[name]
         path=chunks/f'c_effective_{number:06d}.csv.gz';temporary=path.with_suffix('.gz.tmp')
         table.to_csv(temporary,index=False,compression={'method':'gzip','compresslevel':1});temporary.replace(path)
         total+=len(points)
-        print(f'Model A chunk {number}: total={total:,}',flush=True)
+        print(f'{config.get("plot_model_label","Model A")} chunk {number}: total={total:,}',flush=True)
+    if raw_grid is not None:raw_grid.flush()
     grid.flush();missing=int(np.count_nonzero((mask!=0)&~seen))
     report={'status':'complete' if total>0 and missing==0 else 'incomplete','model':'A',
             'prediction_depth_m':config['prediction_depth_m'],'predicted_points':total,
@@ -62,6 +71,7 @@ def predict_grid(config,model,transform,metrics,output,n_artifact=None):
             'grid_spacing_m':spatial['grid_spacing_m'],'display_spacing_m':config['display_spacing_m'],
             'matrix_orientation':'rows northward; columns eastward','nodata':'NaN',
             'depth_outside_training_range':not(metrics['training_depth_range_m'][0]<=config['prediction_depth_m']<=metrics['training_depth_range_m'][1])}
+    if raw_grid is not None:report['raw_prediction_matrix']='c_effective_raw_kpa.npy'
     if report['status']=='complete':
         if config.get('write_text_matrix',True):
             save_text_matrix(output/'c_effective_kpa.txt.gz',grid,mask)
@@ -84,7 +94,7 @@ def plot_grid(config, grid, mask, output):
     add_overlay(ax,image,'c',config,output/'c_observed_overlay.csv')
     ax.add_collection(LineCollection(boundary_segments(mask,bounds,spatial['grid_spacing_m']),colors='#333333',linewidths=.6))
     fig.colorbar(image,ax=ax,label="Effective cohesion c' (kPa)",shrink=.8)
-    ax.set(title=f"Model A: Effective cohesion at depth {config['prediction_depth_m']:g} m",
+    ax.set(title=f"{config.get('plot_model_label','Model A')}: Effective cohesion at depth {config['prediction_depth_m']:g} m",
            xlabel='Y (m) — Japan Plane Rectangular CS VII',ylabel='X (m) — Japan Plane Rectangular CS VII',aspect='equal')
     ax.ticklabel_format(axis='both',style='plain',useOffset=False)
     fig.tight_layout();fig.savefig(output/'c_effective.png',dpi=180,bbox_inches='tight');plt.close(fig)

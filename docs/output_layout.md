@@ -58,7 +58,8 @@ c・gammaのテキスト出力は各 `prediction.json` の `write_text_matrix` �
 |---|---|
 | data/raw/ | 収集した元データ |
 | data/interim/ | 抽出表・加工途中データ |
-| data/training/ | 学習入力データ |
+| data/training/xgboost/ | XGBoost用学習データ |
+| data/training/tabpfn/ | TabPFN用学習データ |
 | data/cache/ | 再利用キャッシュ |
 | logs/ | 実行ログ |
 

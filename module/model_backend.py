@@ -2,7 +2,7 @@
 import importlib
 from module.configuration import load_model_settings
 
-BACKENDS = {'xgboost': 'module.backends.xgboost'}
+BACKENDS = {'xgboost': 'module.backends.xgboost', 'tabpfn': 'module.backends.tabpfn'}
 
 
 def selected_model():

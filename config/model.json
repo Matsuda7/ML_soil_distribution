@@ -1,8 +1,17 @@
 {
-  "model": "xgboost",
+  "model": "tabpfn",
   "training_min_depth_m": 0,
   "training_max_depth_m": 10,
   "include_n50": true,
   "prediction_depth_m": 5.0,
-  "observed_depth_tolerance_m": 1.0
+  "observed_depth_tolerance_m": 1.0,
+  "tabpfn": {
+    "dataset_directory": null,
+    "model_version": "v2",
+    "model_path": "data/models/tabpfn/tabpfn-v2-regressor.ckpt",
+    "device": "cpu",
+    "cpu_threads": null,
+    "n_estimators": 8,
+    "predict_batch_size": 256
+  }
 }

@@ -12,7 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from module.model_reporting import depth_scatter
 from xgboost import XGBRegressor
-from module.paths import project_path, TRAINING
+from module.paths import project_path, XGBOOST_TRAINING as TRAINING
 from module.gamma_features import model_frame
 from module.xgb_common import regression_metrics, prepare_feature_frame
 

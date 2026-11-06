@@ -17,7 +17,7 @@ def train(config=None):
     write_config_snapshot(config, run, 'gamma')
     status={'status':'running','gamma_kind':kind,'run':run.name,'prediction_depth_m':config['prediction_depth_m']}
     try:
-        from module.paths import TRAINING
+        from module.paths import XGBOOST_TRAINING as TRAINING
         from module.gamma_config import data_signature
         prepared = json.loads((TRAINING/'gamma/preparation_summary.json').read_text())
         if prepared['signature'] != data_signature(config):

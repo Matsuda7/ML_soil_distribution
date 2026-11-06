@@ -5,7 +5,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import GroupKFold
-from module.paths import TRAINING
+from module.paths import XGBOOST_TRAINING as TRAINING
 from module.gamma_features import model_frame
 from module.n_estimation import fit_predict, exclude_queries, predict_ensemble
 from module.model_reporting import save_model_reports
