@@ -1,0 +1,15 @@
+{
+  "run": "results/20261106/c",
+  "cpu_threads": null,
+  "prediction_rows": 10000,
+  "batch_sizes": [256, 512, 1024, 2048],
+  "fit_modes": ["low_memory", "fit_with_cache"],
+  "repeats": 3,
+  "warmup_rows": 256,
+  "seed": 42,
+  "total_prediction_rows": 20000000,
+  "depths_m": null,
+  "timeout_seconds": 7200,
+  "atol": 0.00001,
+  "rtol": 0.00001
+}
