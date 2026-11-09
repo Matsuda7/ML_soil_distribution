@@ -26,7 +26,7 @@ def prediction_config(run):
     saved_options=options_from({'tabpfn':saved['tabpfn']})
     overrides=load_model_settings().get('tabpfn',{})
     # Model family, estimator count and checkpoint are fixed by stage 03.
-    for key in ('device','cpu_threads','predict_batch_size'):
+    for key in ('device','cpu_threads','predict_batch_size','prediction_fit_mode'):
         if key in overrides:saved_options[key]=overrides[key]
     options=options_from({'tabpfn':saved_options})
     for key in ('prediction_depth_m','observed_depth_tolerance_m','input_chunk_size','display_spacing_m','write_text_matrix'):
@@ -123,13 +123,13 @@ def load_assets(run,config,options):
 
 
 class BatchedPredictor:
-    def __init__(self,model,size,progress_path):
-        self.model=model;self.size=size;self.path=progress_path
+    def __init__(self,model,size,progress_path,context=None):
+        self.model=model;self.size=size;self.path=progress_path;self.context=context or {}
         self.rows=0;self.seconds=0.;self.batches=0
 
     def _progress(self,rows,seconds):
         self.rows+=rows;self.seconds+=seconds;self.batches+=1
-        write_json(self.path,dict(status='predicting',model_prediction_rows=self.rows,batches=self.batches,
+        write_json(self.path,dict(self.context,status='predicting',model_prediction_rows=self.rows,batches=self.batches,
                    inference_seconds=self.seconds,points_per_second=self.rows/max(self.seconds,1e-9),
                    note='progress only; not a resume checkpoint'))
         if self.batches==1 or self.batches%20==0:
@@ -148,15 +148,20 @@ def predict_cohesion(run,n_distribution_run=None):
     if n_distribution_run is not None:
         raise NotImplementedError('TabPFN 04 reuses the N distribution frozen in stage 02; no replacement by a different phi run')
     config,options=prediction_config(run)
+    loading_started=perf_counter()
     model,transform,metadata,metrics,n_artifact,environment=load_assets(run,config,options)
+    model_load_seconds=perf_counter()-loading_started
     # Required local inputs are checked before an old distribution is archived.
     for key in ('grid_input','dem_input','property_mask'):
         if not project_path(config['spatial'][key]).is_file():raise FileNotFoundError(config['spatial'][key])
+    from module.tabpfn_cache import prediction_model
+    model,cache_report=prediction_model(run,model,transform,metadata,metrics,environment,options['prediction_fit_mode'])
+    environment.update(cache_report,model_load_seconds=model_load_seconds)
     archive_grid(run)
     write_json(run/'config.json',config)
     write_json(run/'run_summary.json',dict(status='predicting',estimator='tabpfn',output=str(run)))
     write_json(run/'prediction_environment.json',dict(environment,batch_size=options['predict_batch_size']))
-    predictor=BatchedPredictor(model,options['predict_batch_size'],run/'grid/prediction_progress.json')
+    predictor=BatchedPredictor(model,options['predict_batch_size'],run/'grid/prediction_progress.json',context=cache_report)
     started=perf_counter()
     try:
         from module.tabpfn_regression import thread_limits
@@ -164,7 +169,7 @@ def predict_cohesion(run,n_distribution_run=None):
         with thread_limits(environment):
             report=predict_grid(config,predictor,transform,metrics,run/'grid',n_artifact=n_artifact,
                                 feature_builder=lambda frame:prediction_frame(frame,metadata,transform))
-        report.update(estimator='tabpfn',output=str(run),batch_size=options['predict_batch_size'],
+        report.update(cache_report,model_load_seconds=model_load_seconds,estimator='tabpfn',output=str(run),batch_size=options['predict_batch_size'],
                       model_prediction_rows=predictor.rows,inference_seconds=predictor.seconds,
                       points_per_second=predictor.rows/max(predictor.seconds,1e-9),total_seconds=perf_counter()-started)
         if n_artifact is not None:

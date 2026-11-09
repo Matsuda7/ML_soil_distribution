@@ -10,7 +10,7 @@ from module.paths import project_path
 FAMILIES = {'v2': '2.2.1', 'v3.5-fast': '9.2.0'}
 DEFAULTS = dict(dataset_directory=None,model_version='v2',
                 model_path='data/models/tabpfn/tabpfn-v2-regressor.ckpt',device='auto',
-                cpu_threads=None,n_estimators=8,predict_batch_size=256)
+                cpu_threads=None,n_estimators=8,predict_batch_size=256,prediction_fit_mode='low_memory')
 
 
 def options_from(settings):
@@ -29,6 +29,8 @@ def options_from(settings):
     value=options['cpu_threads']
     if value is not None and (type(value) is not int or value<1):
         raise ValueError('tabpfn.cpu_threads must be an integer >= 1 or null')
+    if options['prediction_fit_mode'] not in ('low_memory','fit_with_cache'):
+        raise ValueError('tabpfn.prediction_fit_mode must be low_memory or fit_with_cache')
     path=options['model_path']
     if not isinstance(path,str) or not path.strip() or path=='auto':
         raise ValueError('tabpfn.model_path must name an explicit local checkpoint')

@@ -12,6 +12,7 @@
     "device": "cpu",
     "cpu_threads": null,
     "n_estimators": 8,
-    "predict_batch_size": 256
+    "predict_batch_size": 256,
+    "prediction_fit_mode": "fit_with_cache"
   }
 }

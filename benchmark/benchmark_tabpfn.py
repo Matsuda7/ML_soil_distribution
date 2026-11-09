@@ -227,15 +227,7 @@ def differences(pred, reference, atol, rtol):
                 predictions_close=bool(np.allclose(pred, reference, atol=atol, rtol=rtol)))
 
 
-def fit_cached_model(model_class, original_params, x, y):
-    """Rebuild a separate estimator, changing only the inference engine mode."""
-    params = original_params.copy()
-    if type(params.get('random_state')) is not int:
-        raise ValueError('An immutable integer random_state is required')
-    params['fit_mode'] = 'fit_with_cache'
-    model = model_class(**params)
-    model.fit(x, y)
-    return model
+from module.tabpfn_cache import fit_cached_model
 
 
 def peak_memory_mb():
