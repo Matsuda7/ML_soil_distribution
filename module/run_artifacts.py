@@ -2,6 +2,7 @@
 from datetime import datetime
 import json
 from pathlib import Path
+from time import sleep
 from uuid import uuid4
 from module.paths import RESULTS, project_path
 
@@ -12,9 +13,24 @@ def read_json(path):
 
 def write_json(path, value):
     path = Path(path)
-    temporary = path.with_suffix('.tmp')
-    temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str)+'\n')
-    temporary.replace(path)
+    temporary = path.with_name(f'.{path.name}.{uuid4().hex}.tmp')
+    try:
+        temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2, default=str)+'\n',
+                             encoding='utf-8')
+        for attempt in range(6):
+            try:
+                temporary.replace(path)
+                break
+            except PermissionError:
+                # Windows readers/scanners can briefly prevent atomic replacement.
+                if attempt == 5:
+                    raise
+                sleep(0.1 * 2**attempt)
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except OSError:
+            pass  # Cleanup must not hide the original write/replace error.
 
 
 def target_name(target, gamma_kind=None):

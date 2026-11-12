@@ -7,8 +7,8 @@
     "slope",
     "curvature",
     "jshis_avs30",
-    "jshis_arv",
-    "n_value"
+    "jshis_arv"
+    // "n_value"
   ],
   "categorical_features": [
     "symbol",
